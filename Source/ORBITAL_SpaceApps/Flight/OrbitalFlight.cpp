@@ -337,7 +337,7 @@ void AOrbitalFlightPlayback::StartFlight(const Orbital::Catalog& Catalog, const 
 bool AOrbitalFlightPlayback::StartTCA()
 {
 	DemoScreen = NewObject<UOrbitalAssemblyScreen>(this);
-	DemoScreen->InitBuiltInCatalog();
+	DemoScreen->InitCatalog();
 	static const TCHAR* const ProbeParts[] = {
 		TEXT("bus_small"), TEXT("sc_tank_s"), TEXT("sc_engine_mono"), TEXT("rcs"), TEXT("solar_s"),
 		TEXT("battery_s"), TEXT("antenna_lga"), TEXT("obc_basic"), TEXT("inst_neutron")};
