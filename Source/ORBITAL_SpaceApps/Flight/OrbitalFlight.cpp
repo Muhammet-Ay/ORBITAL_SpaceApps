@@ -28,6 +28,10 @@ static TAutoConsoleVariable<int32> CVarOrbitalFlightDemo(
 	TEXT("orbital.FlightDemo"), 1,
 	TEXT("1: play the TC-A flight when play starts on the L_Mission map. 0: off."));
 
+static TAutoConsoleVariable<float> CVarOrbitalFlightExposure(
+	TEXT("orbital.FlightExposureBias"), -1.3f,
+	TEXT("Exposure bias (EV) applied to the mission cameras during flight playback."));
+
 namespace
 {
 // Each event stays on screen at least this long, so events that share a time
@@ -517,6 +521,11 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 			Player.PlayerCameraManager->StartCameraFade(1.0f, 0.0f, 0.5f, FLinearColor::Black, false, false);
 		}
 		ActiveCamera = Camera;
+		// The project runs with fixed exposure; without this the sunlit vehicle and Moon clip to white.
+		UCameraComponent* Lens = Camera->GetCameraComponent();
+		Lens->PostProcessBlendWeight = 1.0f;
+		Lens->PostProcessSettings.bOverride_AutoExposureBias = true;
+		Lens->PostProcessSettings.AutoExposureBias = CVarOrbitalFlightExposure.GetValueOnGameThread();
 	}
 
 	// What is still part of the vehicle when this event starts.
@@ -550,7 +559,7 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 		Mode = EMode::Ascent;
 		FocusLocalCm = FVector(0, 0, TotalHeightM * 50.0);
 		FocusSizeM = TotalHeightM;
-		FocusFraction = 0.22;
+		FocusFraction = 0.3;
 		SetFill(false);
 	}
 	else if (bSeparation)
@@ -559,11 +568,11 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 		{
 			SetActorLocationAndRotation(Anchor - FVector(0, 0, Stage1TopM * 100.0), FRotator::ZeroRotator);
 		}
-		MakeDebris(Stage1, FVector(0, 0, -1800.0), FRotator(3.0, 0, 1.5));
+		MakeDebris(Stage1, FVector(0, 0, -300.0), FRotator(1.5, 0, 0.8));
 		Mode = EMode::Tracked;
-		DriftCm = FVector(0, 0, 1000.0);
-		FocusLocalCm = FVector(0, 0, (Stage1TopM + 2.0) * 100.0);
-		FocusSizeM = TotalHeightM - Stage1TopM + 16.0;
+		DriftCm = FVector(0, 0, 300.0);
+		FocusLocalCm = FVector(0, 0, Stage1TopM * 100.0);
+		FocusSizeM = TotalHeightM + 10.0;
 		FocusFraction = 0.6;
 		if (Camera)
 		{
@@ -577,11 +586,11 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 			SetActorLocationAndRotation(Anchor - ProbeFocus, FRotator::ZeroRotator);
 		}
 		const FVector Sideways = Camera ? Camera->GetActorRightVector() : FVector::RightVector;
-		MakeDebris(Fairing, Sideways * 500.0 + FVector(0, 0, -250.0), FRotator(0, 0, 14.0));
+		MakeDebris(Fairing, Sideways * 180.0 + FVector(0, 0, -60.0), FRotator(0, 0, 6.0));
 		Mode = EMode::Tracked;
-		DriftCm = FVector(0, 0, 600.0);
+		DriftCm = FVector(0, 0, 100.0);
 		FocusLocalCm = ProbeFocus;
-		FocusSizeM = FairingHeightM + 4.0;
+		FocusSizeM = FairingHeightM + 8.0;
 		FocusFraction = 0.6;
 		if (Camera)
 		{
@@ -764,7 +773,7 @@ void AOrbitalFlightHUD::DrawHUD()
 	const float Width = Canvas->SizeX, Height = Canvas->SizeY;
 	const float Unit = FMath::Max(0.75f, Height / 720.0f);
 	UFont* Font = GEngine->GetLargeFont();
-	const float TextScale = 1.5f * Unit, SmallScale = 1.1f * Unit;
+	const float TextScale = 1.9f * Unit, SmallScale = 1.3f * Unit;
 	const FLinearColor Panel(0.0f, 0.0f, 0.0f, 0.65f);
 
 	// Status line: word-wrapped and centred at the bottom.
