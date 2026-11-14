@@ -9,7 +9,7 @@ Credit: NASA
 | Varlık (Unreal) | Kaynak | İndirilen dosya | İşlem |
 |---|---|---|---|
 | `/Game/Textures/NASA/T_Earth_BlueMarble_2K` | Blue Marble Next Generation w/ Topography and Bathymetry, Aralık 2004. NASA Visible Earth: https://visibleearth.nasa.gov/images/73909/december-blue-marble-next-generation-w-topography-and-bathymetry | https://assets.science.nasa.gov/content/dam/science/esd/eo/images/bmng/bmng-topography-bathymetry/december/world.topo.bathy.200412.3x5400x2700.jpg | 5400x2700 JPEG, 2048x1024 PNG'ye küçültüldü |
-| `/Game/Textures/NASA/T_Moon_LROC_2K` | CGI Moon Kit, NASA Scientific Visualization Studio (SVS 4720): https://svs.gsfc.nasa.gov/4720 | https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_2k.tif | 2048x1024 TIFF, aynı çözünürlükte PNG'ye çevrildi |
+| `/Game/Textures/NASA/T_Moon_LROC_4K` | CGI Moon Kit, NASA Scientific Visualization Studio (SVS 4720): https://svs.gsfc.nasa.gov/4720 | https://svs.gsfc.nasa.gov/vis/a000000/a004700/a004720/lroc_color_poles_4k.tif | 4096x2048 TIFF, aynı çözünürlükte PNG'ye çevrildi |
 
 Ayrıntılı atıf:
 
