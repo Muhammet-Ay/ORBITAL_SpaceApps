@@ -43,6 +43,8 @@ public:
 
 	// Display name of a part from the catalog ("Probe Bus S"); the ID if unknown.
 	FString PartName(const Orbital::Id& PartId) const;
+	// One-sentence description of a part from the "Part tooltips" table in ORBITAL_UI_COPY_v2.1.md; empty if none.
+	FString PartDescription(const Orbital::Id& PartId) const;
 	// Cause / Fix text for a result code from ORBITAL_UI_COPY_v2.1.md; empty if not found.
 	FString CauseText(const Orbital::Id& Code) const;
 	FString FixText(const Orbital::Id& Code) const;
@@ -50,7 +52,7 @@ public:
 private:
 	TSharedPtr<const FOrbitalAssemblyData> Data; // declared first: must outlive Flow
 	TUniquePtr<Orbital::GameFlow> Flow;
-	TMap<FString, FString> PartNames;
+	TMap<FString, FString> PartNames, PartDescriptions;
 	TMap<FString, FString> Causes, Fixes;
 	FString LoadError;
 	bool bLoadTried = false;
