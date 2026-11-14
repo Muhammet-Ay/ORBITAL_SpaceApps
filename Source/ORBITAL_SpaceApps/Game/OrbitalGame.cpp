@@ -5,11 +5,16 @@
 #include "../OrbitalCatalogLoader.h"
 #include "AudioDevice.h"
 #include "Camera/CameraActor.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
 #include "Engine/Canvas.h"
+#include "Engine/DirectionalLight.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/GameUserSettings.h"
@@ -17,6 +22,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -307,6 +313,7 @@ void AOrbitalGameDirector::Tick(float DeltaSeconds)
 	{
 		return;
 	}
+	UpdateSun(Player);
 	Orbital::GameFlow* Flow = State->GetFlow();
 
 	// A world that starts in the flight or report phase has no flight actor (level reload
@@ -350,6 +357,54 @@ void AOrbitalGameDirector::Tick(float DeltaSeconds)
 	else if (Flow->Phase() == Orbital::GamePhase::Flight && Flight && Flight->GetReport().bVisible)
 	{
 		Flow->FlightFinished();
+	}
+}
+
+// The level lights the scene with a directional light but shows no Sun. This puts a glowing
+// sphere where that light comes from. It follows the camera at a fixed distance, so it stays
+// in the same direction from every camera, behind Earth and the Moon and inside the star sphere
+// (radius 1.0e8 cm). Material: M_Flame (unlit, additive), which the flight code already uses.
+void AOrbitalGameDirector::UpdateSun(APlayerController* Player)
+{
+	const double DistanceCm = 5.0e7;      // farther than Earth or the Moon from any camera
+	const double AngularRadiusDeg = 0.5;  // the real Sun is 0.27; a little larger so it reads on screen
+	const float Glow = 50.0f;             // brightness; raise or lower after looking at it in play
+
+	UWorld* World = GetWorld();
+	if (!SunDisc && !bSunTried && World)
+	{
+		bSunTried = true;
+		for (TActorIterator<ADirectionalLight> It(World); It; ++It)
+		{
+			SunLight = *It;
+			break;
+		}
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+		UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/FX/M_Flame.M_Flame"));
+		AStaticMeshActor* Actor = (SunLight.IsValid() && Mesh && Material) ? World->SpawnActor<AStaticMeshActor>() : nullptr;
+		UStaticMeshComponent* Component = Actor ? Actor->GetStaticMeshComponent() : nullptr;
+		if (!Component)
+		{
+			UE_LOG(LogOrbitalGame, Warning, TEXT("Sun disc not created (light, mesh or material missing)."));
+			return;
+		}
+		Component->SetMobility(EComponentMobility::Movable);
+		Component->SetStaticMesh(Mesh);
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Component->SetCastShadow(false);
+		UMaterialInstanceDynamic* Dynamic = UMaterialInstanceDynamic::Create(Material, Actor);
+		Dynamic->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.93f, 0.80f));
+		Dynamic->SetScalarParameterValue(TEXT("Glow"), Glow);
+		Component->SetMaterial(0, Dynamic);
+		// The engine sphere has a 50 cm radius.
+		Actor->SetActorScale3D(FVector(DistanceCm * FMath::Tan(FMath::DegreesToRadians(AngularRadiusDeg)) / 50.0));
+		SunDisc = Actor;
+	}
+	if (SunDisc && SunLight.IsValid() && Player && Player->PlayerCameraManager)
+	{
+		// The light's forward vector is the direction the light travels, so the Sun is the other way.
+		SunDisc->SetActorLocation(Player->PlayerCameraManager->GetCameraLocation()
+			- SunLight->GetActorForwardVector() * DistanceCm);
 	}
 }
 

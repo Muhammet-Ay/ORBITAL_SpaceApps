@@ -22,8 +22,10 @@
 #include "../Assembly/OrbitalGameFlow.h"
 #include "OrbitalGame.generated.h"
 
+class ADirectionalLight;
 class AOrbitalFlightPlayback;
 class APlayerController;
+class AStaticMeshActor;
 class UFont;
 struct FOrbitalAssemblyData;
 
@@ -96,9 +98,16 @@ public:
 private:
 	void BeginFlight();
 	void HandleRedesign();
+	// Visible Sun disc: a glowing sphere kept far from the camera, opposite the level's directional light.
+	void UpdateSun(APlayerController* Player);
 
 	UPROPERTY()
 	TObjectPtr<AOrbitalFlightPlayback> Flight;
+
+	UPROPERTY()
+	TObjectPtr<AStaticMeshActor> SunDisc;
+	TWeakObjectPtr<ADirectionalLight> SunLight;
+	bool bSunTried = false;
 
 	Orbital::Id SelectedSocket;
 	int32 SelectedIndex = -1;
