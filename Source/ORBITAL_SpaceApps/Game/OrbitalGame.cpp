@@ -3,6 +3,7 @@
 #include "../Assembly/OrbitalAssemblyScreenObject.h"
 #include "../Flight/OrbitalFlight.h"
 #include "../OrbitalCatalogLoader.h"
+#include "AudioDevice.h"
 #include "Camera/CameraActor.h"
 #include "Dom/JsonObject.h"
 #include "Dom/JsonValue.h"
@@ -11,9 +12,11 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/GameUserSettings.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -116,6 +119,41 @@ static FString OrbitalNumber(double Value)
 }
 
 // ---------------------------------------------------------------- game state
+
+void UOrbitalGameStateSubsystem::Initialize(FSubsystemCollectionBase& Collection)
+{
+	Super::Initialize(Collection);
+	// The automated loop test and its recording mode drive the assembly screen directly.
+	if (FParse::Param(FCommandLine::Get(), TEXT("OrbitalLoopTest")) || FParse::Param(FCommandLine::Get(), TEXT("OrbitalLoopRecord")))
+	{
+		Screen = EOrbitalScreen::Game;
+	}
+}
+
+void UOrbitalGameStateSubsystem::SetVolumePercent(int32 Percent, UWorld* World)
+{
+	VolumePercent = FMath::Clamp(Percent, 0, 100);
+	if (FAudioDevice* Device = World ? World->GetAudioDeviceRaw() : nullptr)
+	{
+		Device->SetTransientPrimaryVolume(VolumePercent / 100.0f);
+	}
+}
+
+int32 UOrbitalGameStateSubsystem::GetQuality() const
+{
+	const UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr;
+	return Settings ? Settings->GetOverallScalabilityLevel() : -1;
+}
+
+void UOrbitalGameStateSubsystem::SetQuality(int32 Level)
+{
+	if (UGameUserSettings* Settings = GEngine ? GEngine->GetGameUserSettings() : nullptr)
+	{
+		Settings->SetOverallScalabilityLevel(FMath::Clamp(Level, 0, 3));
+		Settings->ApplyNonResolutionSettings();
+		Settings->SaveSettings();
+	}
+}
 
 void UOrbitalGameStateSubsystem::Deinitialize()
 {
@@ -292,6 +330,7 @@ void AOrbitalGameDirector::Tick(float DeltaSeconds)
 			{
 				GEngine->ClearOnScreenDebugMessages();
 			}
+			State->SetVolumePercent(State->GetVolumePercent(), World); // a new level has a fresh audio device state
 			// The pad camera makes a calm background for the assembly screen.
 			const FName PadTag(TEXT("launcher/pad_wide"));
 			for (TActorIterator<ACameraActor> It(World); It; ++It)
@@ -320,13 +359,57 @@ void AOrbitalGameDirector::Tick(float DeltaSeconds)
 //   o:<orbit>  y:<years>  g:<ground>  m:<objective>  d:<difficulty>   mission plan
 //   f:<+/-kg>           change propellant      e:<+/-1>      change stage 1 engine count
 //   a:launch  a:confirm  a:back                launch, and the design review answers
+//   n:menu  n:missions  n:settings  n:credits  n:game  n:quit     menu navigation
+//   k:<mission card id>                        start a mission from its card
+//   v:<+/-percent>  q:<0..3>                   settings: sound volume, graphics quality
 void AOrbitalGameDirector::HandleAction(const FString& Action)
 {
 	UOrbitalGameStateSubsystem* State = GetState();
 	Orbital::GameFlow* Flow = State ? State->GetFlow() : nullptr;
 	FString Kind, Argument;
-	if (!Flow || !Action.Split(TEXT(":"), &Kind, &Argument))
+	if (!State || !Action.Split(TEXT(":"), &Kind, &Argument))
 	{
+		return;
+	}
+	if (Kind == TEXT("n"))
+	{
+		if (Argument == TEXT("quit"))
+		{
+			// Closes the game; in Play in Editor it ends the play session.
+			UWorld* World = GetWorld();
+			UKismetSystemLibrary::QuitGame(this, World ? World->GetFirstPlayerController() : nullptr, EQuitPreference::Quit, false);
+			return;
+		}
+		State->SetScreen(Argument == TEXT("missions") ? EOrbitalScreen::Missions
+			: Argument == TEXT("settings") ? EOrbitalScreen::Settings
+			: Argument == TEXT("credits") ? EOrbitalScreen::Credits
+			: Argument == TEXT("game") ? EOrbitalScreen::Game : EOrbitalScreen::MainMenu);
+		return;
+	}
+	if (Kind == TEXT("v"))
+	{
+		State->SetVolumePercent(State->GetVolumePercent() + FCString::Atoi(*Argument), GetWorld());
+		return;
+	}
+	if (Kind == TEXT("q"))
+	{
+		State->SetQuality(FCString::Atoi(*Argument));
+		return;
+	}
+	if (!Flow)
+	{
+		return;
+	}
+	if (Kind == TEXT("k"))
+	{
+		for (const Orbital::MissionCard& Card : Orbital::MissionCards())
+		{
+			if (OrbitalGameText(Card.id) == Argument && Flow->StartMission(Card))
+			{
+				State->SetMissionTitle(OrbitalGameText(Card.title));
+				State->SetScreen(EOrbitalScreen::Game);
+			}
+		}
 		return;
 	}
 	const Orbital::AssemblySnapshot& Snapshot = Flow->Screen().Snapshot();
@@ -512,6 +595,10 @@ void AOrbitalAssemblyHUD::DrawHUD()
 	const FLinearColor RowColor(1.0f, 1.0f, 1.0f, 0.06f), RowSelected(0.10f, 0.35f, 0.75f, 0.55f);
 
 	DrawRect(FLinearColor(0.02f, 0.03f, 0.06f, 0.78f), 0, 0, Width, Height);
+	if (State && DrawMenu(*State, Width, Height, Unit, Font))
+	{
+		return;
+	}
 	Orbital::GameFlow* Flow = State ? State->GetFlow() : nullptr;
 	if (!Flow)
 	{
@@ -546,8 +633,10 @@ void AOrbitalAssemblyHUD::DrawHUD()
 	// ---- header
 	const float Top = Pad * 2;
 	DrawText(TEXT("ORBITAL  |  Assembly"), White, Pad * 3, Top, Font, TitleScale);
-	Label(FString::Printf(TEXT("Mission: lunar polar survey   Budget: %s M credits"), *OrbitalNumber(Preview.budgetMCr)),
-		Dim, Width * 0.34f, Top + TextHeight * 0.2f);
+	Label(FString::Printf(TEXT("Mission: %s   Budget: %s M credits"),
+		State->GetMissionTitle().IsEmpty() ? TEXT("lunar polar survey") : *State->GetMissionTitle(),
+		*OrbitalNumber(Preview.budgetMCr)), Dim, Width * 0.34f, Top + TextHeight * 0.2f);
+	Button(TEXT("Menu"), Width * 0.90f, Top, Width * 0.08f, ButtonColor, TEXT("n:menu"), bInteractive);
 	const float ColumnTop = Top + TextHeight * 2.6f;
 	const float LeftX = Width * 0.02f, LeftW = Width * 0.29f;
 	const float MidX = Width * 0.33f, MidW = Width * 0.30f;
@@ -855,6 +944,171 @@ void AOrbitalAssemblyHUD::DrawHUD()
 		Button(TEXT("Launch anyway"), PanelX + PanelW * 0.54f, LineY, ChoiceW, FLinearColor(0.70f, 0.45f, 0.10f, 0.98f),
 			TEXT("a:confirm"), true);
 	}
+}
+
+// ---------------------------------------------------------------- main menu
+
+void AOrbitalAssemblyHUD::MenuButton(const FString& Text, float X, float Y, float ButtonWidth, float ButtonHeight,
+	const FLinearColor& Color, const FString& Action, UFont* Font, float Scale)
+{
+	DrawRect(Color, X, Y, ButtonWidth, ButtonHeight);
+	float LabelWidth = 0, LabelHeight = 0;
+	GetTextSize(Text, LabelWidth, LabelHeight, Font, Scale);
+	DrawText(Text, FLinearColor::White, X + (ButtonWidth - LabelWidth) * 0.5f, Y + (ButtonHeight - LabelHeight) * 0.5f, Font, Scale);
+	if (!Action.IsEmpty())
+	{
+		AddHitBox(FVector2D(X, Y), FVector2D(ButtonWidth, ButtonHeight), FName(*Action), true);
+	}
+}
+
+bool AOrbitalAssemblyHUD::DrawMenu(UOrbitalGameStateSubsystem& State, float Width, float Height, float Unit, UFont* Font)
+{
+	const EOrbitalScreen Screen = State.GetScreen();
+	if (Screen == EOrbitalScreen::Game)
+	{
+		return false;
+	}
+	const float Scale = 1.3f * Unit, BigScale = 4.0f * Unit, HeadScale = 2.0f * Unit;
+	float MeasureWidth = 0, TextHeight = 0;
+	GetTextSize(TEXT("Ag"), MeasureWidth, TextHeight, Font, Scale);
+	const float RowHeight = TextHeight * 1.35f, ButtonHeight = TextHeight * 2.4f;
+	const FLinearColor Dim(0.62f, 0.66f, 0.72f), Accent(0.7f, 0.85f, 1.0f);
+	const FLinearColor ButtonColor(0.10f, 0.35f, 0.75f, 0.95f), ButtonOn(0.15f, 0.55f, 0.35f, 0.95f);
+	const FLinearColor CardColor(0.0f, 0.0f, 0.0f, 0.60f);
+	const auto Centered = [&](const FString& Text, const FLinearColor& Color, float Y, float TextScale)
+	{
+		float TextWidth = 0, LineHeight = 0;
+		GetTextSize(Text, TextWidth, LineHeight, Font, TextScale);
+		DrawText(Text, Color, (Width - TextWidth) * 0.5f, Y, Font, TextScale);
+	};
+
+	if (Screen == EOrbitalScreen::MainMenu)
+	{
+		Centered(TEXT("ORBITAL"), FLinearColor::White, Height * 0.20f, BigScale);
+		Centered(TEXT("Design a mission to the Moon's poles. Build it, launch it, and learn why it worked."), Dim,
+			Height * 0.36f, Scale);
+		const float ButtonWidth = Width * 0.26f, X = (Width - ButtonWidth) * 0.5f;
+		const float FirstY = Height * 0.44f, Step = ButtonHeight * 1.22f;
+		MenuButton(TEXT("Missions"), X, FirstY, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:missions"), Font, HeadScale * 0.8f);
+		MenuButton(TEXT("Settings"), X, FirstY + Step, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:settings"), Font, HeadScale * 0.8f);
+		MenuButton(TEXT("Credits"), X, FirstY + Step * 2.0f, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:credits"), Font, HeadScale * 0.8f);
+		MenuButton(TEXT("Quit"), X, FirstY + Step * 3.0f, ButtonWidth, ButtonHeight, FLinearColor(0.30f, 0.30f, 0.34f, 0.95f), TEXT("n:quit"), Font, HeadScale * 0.8f);
+		Centered(TEXT("NASA Space Apps Challenge 2026  |  Team Three-Body Problem."), Dim, Height * 0.90f, Scale * 0.85f);
+		return true;
+	}
+
+	if (Screen == EOrbitalScreen::Missions)
+	{
+		Centered(TEXT("CHOOSE A MISSION"), FLinearColor::White, Height * 0.10f, HeadScale);
+		Centered(TEXT("Same Moon, same parts. Each mission has a different goal and budget."), Dim, Height * 0.10f + TextHeight * 2.4f, Scale);
+		Orbital::GameFlow* Flow = State.GetFlow();
+		const FOrbitalAssemblyData* Data = State.GetData();
+		if (!Flow || !Data)
+		{
+			Centered(TEXT("Could not load PART_CATALOG.json: ") + State.GetLoadError(), FLinearColor(1.0f, 0.35f, 0.30f), Height * 0.4f, Scale);
+		}
+		else
+		{
+			const std::vector<Orbital::MissionCard> Cards = Orbital::MissionCards();
+			const int32 Count = static_cast<int32>(Cards.size());
+			const float Gap = Width * 0.025f, CardWidth = (Width * 0.90f - Gap * (Count - 1)) / FMath::Max(1, Count);
+			const float CardTop = Height * 0.26f, CardHeight = Height * 0.52f, Inset = 16.0f * Unit;
+			for (int32 Index = 0; Index < Count; ++Index)
+			{
+				const Orbital::MissionCard& Card = Cards[Index];
+				const float X = Width * 0.05f + Index * (CardWidth + Gap);
+				DrawRect(CardColor, X, CardTop, CardWidth, CardHeight);
+				DrawText(OrbitalGameText(Card.title), FLinearColor::White, X + Inset, CardTop + Inset, Font, HeadScale * 0.85f);
+				float Y = CardTop + Inset + TextHeight * 2.6f;
+				for (const FString& Line : WrapText(OrbitalGameText(Card.summary), CardWidth - Inset * 2.0f, Font, Scale))
+				{
+					DrawText(Line, FLinearColor::White, X + Inset, Y, Font, Scale);
+					Y += RowHeight;
+				}
+				Y += RowHeight * 0.6f;
+				DrawText(FString::Printf(TEXT("Primary goal: %s"), *OrbitalGameText(Card.primary)), Accent, X + Inset, Y, Font, Scale);
+				Y += RowHeight;
+				const auto Budget = Data->Mission.budgets.find(Card.difficulty);
+				if (Budget != Data->Mission.budgets.end())
+				{
+					DrawText(FString::Printf(TEXT("Budget: %s M credits"), *OrbitalNumber(Budget->second)), Accent, X + Inset, Y, Font, Scale);
+				}
+				MenuButton(TEXT("Start"), X + Inset, CardTop + CardHeight - ButtonHeight - Inset, CardWidth - Inset * 2.0f, ButtonHeight,
+					ButtonOn, FString(TEXT("k:")) + OrbitalGameText(Card.id), Font, Scale * 1.2f);
+			}
+		}
+		MenuButton(TEXT("Back"), Width * 0.05f, Height * 0.86f, Width * 0.14f, ButtonHeight, ButtonColor, TEXT("n:menu"), Font, Scale);
+		return true;
+	}
+
+	if (Screen == EOrbitalScreen::Credits)
+	{
+		// NASA data sources as listed in README.md and Docs/CHALLENGE_TRACEABILITY.md.
+		struct FCreditLine
+		{
+			const TCHAR* Text;
+			int32 Style; // 0 body, 1 section heading, 2 gap
+		};
+		static const FCreditLine CreditLines[] = {
+			{TEXT("NASA DATA AND RESOURCES"), 1},
+			{TEXT("NSSDC planetary fact sheets: Earth and Moon constants for the engineering model."), 0},
+			{TEXT("Blue Marble Next Generation: Earth texture. NASA Earth Observatory / NASA Visible Earth."), 0},
+			{TEXT("CGI Moon Kit: Moon texture from LRO/LROC data. NASA's Scientific Visualization Studio."), 0},
+			{TEXT("Deep Star Maps 2020: star background. NASA/Goddard Space Flight Center Scientific Visualization Studio. Gaia DR2: ESA/Gaia/DPAC."), 0},
+			{TEXT("Credit: NASA"), 0},
+			{TEXT(""), 2},
+			{TEXT("TEAM THREE-BODY PROBLEM."), 1},
+			{TEXT("Muhammet: Unreal project setup, scene, lighting, flight view and submission materials."), 0},
+			{TEXT("Isa: vehicle assembly, game screens and mission timeline."), 0},
+			{TEXT("Ram: engineering integration, JSON loader, dashboard, session flow and documentation."), 0},
+			{TEXT(""), 2},
+			{TEXT("NOTES"), 1},
+			{TEXT("Sounds were generated for this project. They are not NASA recordings."), 0},
+			{TEXT("The team used Claude, ChatGPT/Codex and Gemini to help write code, tests, documentation and UI text, and directed and reviewed that work."), 0},
+			{TEXT("ORBITAL uses a simplified educational model. Its estimates are unsuitable for real flight planning."), 0},
+		};
+		Centered(TEXT("CREDITS"), FLinearColor::White, Height * 0.07f, HeadScale);
+		const float Left = Width * 0.12f, TextWidth = Width * 0.76f;
+		float Y = Height * 0.07f + TextHeight * 3.2f;
+		for (const FCreditLine& Entry : CreditLines)
+		{
+			if (Entry.Style == 2)
+			{
+				Y += RowHeight * 0.6f;
+				continue;
+			}
+			for (const FString& Line : WrapText(Entry.Text, TextWidth, Font, Scale))
+			{
+				DrawText(Line, Entry.Style == 1 ? Accent : FLinearColor::White, Left, Y, Font, Scale);
+				Y += RowHeight;
+			}
+		}
+		MenuButton(TEXT("Back"), Width * 0.05f, Height * 0.86f, Width * 0.14f, ButtonHeight, ButtonColor, TEXT("n:menu"), Font, Scale);
+		return true;
+	}
+
+	// Settings
+	Centered(TEXT("SETTINGS"), FLinearColor::White, Height * 0.12f, HeadScale);
+	const float Left = Width * 0.24f, ControlX = Width * 0.46f, Small = Width * 0.06f, Gap = 8.0f * Unit;
+	float Y = Height * 0.32f;
+	DrawText(FString::Printf(TEXT("Sound volume:  %d%%"), State.GetVolumePercent()), FLinearColor::White, Left, Y + ButtonHeight * 0.25f, Font, Scale);
+	MenuButton(TEXT("-"), ControlX, Y, Small, ButtonHeight, ButtonColor, TEXT("v:-10"), Font, Scale * 1.2f);
+	MenuButton(TEXT("+"), ControlX + Small + Gap, Y, Small, ButtonHeight, ButtonColor, TEXT("v:+10"), Font, Scale * 1.2f);
+	Y += ButtonHeight * 1.6f;
+	DrawText(TEXT("Graphics quality:"), FLinearColor::White, Left, Y + ButtonHeight * 0.25f, Font, Scale);
+	const TCHAR* Levels[] = {TEXT("Low"), TEXT("Medium"), TEXT("High"), TEXT("Epic")};
+	const int32 Quality = State.GetQuality();
+	const float LevelWidth = Width * 0.085f;
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		const bool bOn = Index == Quality;
+		MenuButton(Levels[Index], ControlX + Index * (LevelWidth + Gap), Y, LevelWidth, ButtonHeight, bOn ? ButtonOn : ButtonColor,
+			bOn ? FString() : FString::Printf(TEXT("q:%d"), Index), Font, Scale);
+	}
+	Y += ButtonHeight * 1.6f;
+	DrawText(TEXT("Lower the quality if the flight view stutters on your computer."), Dim, Left, Y, Font, Scale * 0.9f);
+	MenuButton(TEXT("Back"), Width * 0.05f, Height * 0.86f, Width * 0.14f, ButtonHeight, ButtonColor, TEXT("n:menu"), Font, Scale);
+	return true;
 }
 
 // ---------------------------------------------------------------- start

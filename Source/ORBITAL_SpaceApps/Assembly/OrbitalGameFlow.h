@@ -28,6 +28,30 @@ struct FlowPresets
     std::map<Id, LauncherDesign> launchers;    // reference_builds LV_*
 };
 
+// Mission cards on the main menu. Each is a preset of primary objective and budget level on
+// the same lunar polar scenario: same parts, same physics, different goal and money.
+struct MissionCard
+{
+    Id id, title;
+    std::string summary;
+    Id primary, difficulty;
+};
+
+inline std::vector<MissionCard> MissionCards()
+{
+    return {
+        {"ice_prospector", "Ice Prospector",
+         "Search the lunar poles for water ice on a tight budget. Carry only what the search needs.",
+         "O1_ICE", "hard"},
+        {"landing_scout", "Landing Site Scout",
+         "Image candidate landing sites near the pole. Cameras make a lot of data, so plan how to send it home.",
+         "O4_IMAGING", "normal"},
+        {"polar_survey", "Full Polar Survey",
+         "Fly all five instruments with a larger budget: ice, terrain, temperature, landing sites and shadowed craters.",
+         "O1_ICE", "easy"},
+    };
+}
+
 class GameFlow
 {
 public:
@@ -81,6 +105,19 @@ public:
         if (phase_ != GamePhase::Assembly || mission_->budgets.count(difficulty) == 0)
             return false;
         difficulty_ = difficulty;
+        return Sync();
+    }
+
+    // Main menu mission card: sets the primary objective and the budget level. The design is kept.
+    bool StartMission(const MissionCard& card)
+    {
+        if (phase_ != GamePhase::Assembly || mission_->objectiveWeights.count(card.primary) == 0 ||
+            mission_->budgets.count(card.difficulty) == 0)
+            return false;
+        primary_ = card.primary;
+        difficulty_ = card.difficulty;
+        last_ = ChangeResult{};
+        last_.ok = true;
         return Sync();
     }
 
