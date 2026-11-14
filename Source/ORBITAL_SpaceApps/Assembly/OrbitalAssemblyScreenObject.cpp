@@ -1,6 +1,6 @@
 #include "OrbitalAssemblyScreenObject.h"
 
-#include "OrbitalCatalogLoader.h"
+#include "../OrbitalCatalogLoader.h"
 #include "Misc/Paths.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogOrbitalAssemblyScreen, Log, All);

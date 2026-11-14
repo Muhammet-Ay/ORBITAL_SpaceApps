@@ -8,7 +8,7 @@
 // Times: missionTimeS is real mission time from liftoff. displayTimeS is the compressed
 // playback clock (cruise and operations are accelerated; see TimelineOptions).
 
-#include "OrbitalEngineering_v2.1.h"
+#include "../OrbitalEngineering_v2.1.h"
 
 #include <cstdio>
 #include <optional>
