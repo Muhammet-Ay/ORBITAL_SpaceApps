@@ -1,6 +1,7 @@
 #include "OrbitalFlight.h"
 
 #include "../Assembly/OrbitalAssemblyScreenObject.h"
+#include "../OrbitalCatalogLoader.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -18,6 +19,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
+#include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
@@ -26,7 +28,11 @@ DEFINE_LOG_CATEGORY_STATIC(LogOrbitalFlight, Log, All);
 
 static TAutoConsoleVariable<int32> CVarOrbitalFlightDemo(
 	TEXT("orbital.FlightDemo"), 1,
-	TEXT("1: play the TC-A flight when play starts on the L_Mission map. 0: off."));
+	TEXT("1: play a reference flight when play starts on the L_Mission map. 0: off."));
+
+static TAutoConsoleVariable<FString> CVarOrbitalFlightCase(
+	TEXT("orbital.FlightCase"), TEXT("TC-A"),
+	TEXT("Reference design played on L_Mission: TC-A, TC-B, TC-D, TC-E or TC-F (TEST_CASES.md)."));
 
 static TAutoConsoleVariable<float> CVarOrbitalFlightExposure(
 	TEXT("orbital.FlightExposureBias"), -1.3f,
@@ -294,20 +300,263 @@ void AOrbitalFlightPlayback::BuildVehicle(const Orbital::Catalog& Catalog,
 	TotalHeightM = Stage2TopM + FairingHeightM;
 }
 
-void AOrbitalFlightPlayback::StartFlight(const Orbital::Catalog& Catalog, const Orbital::SpacecraftDesign& Spacecraft,
-	const Orbital::LauncherDesign& Launcher, const Orbital::MissionResult& Result, const Orbital::Timeline& InTimeline)
+// ---------------------------------------------------------------- vehicle from the 38 part Blueprints
+
+// Part Blueprints (Content/Parts/BP_<catalog id>): pivot at the bottom centre, body along +Z, 1 unit = 1 cm.
+AActor* AOrbitalFlightPlayback::SpawnPart(const Orbital::Id& PartId, USceneComponent* Parent, const FVector& LocationM,
+	const FRotator& Rotation, FVector* OutSizeM)
 {
-	if (bPlaying || InTimeline.empty())
+	if (OutSizeM)
 	{
-		return;
+		*OutSizeM = FVector::ZeroVector;
 	}
-	Show = InTimeline;
+	UClass* Class = PartId.empty() ? nullptr : PartClass(PartId);
+	if (!Class || !Parent || !GetWorld())
+	{
+		return nullptr;
+	}
+	FActorSpawnParameters Params;
+	Params.Owner = this;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AActor* Part = GetWorld()->SpawnActor<AActor>(Class, FTransform::Identity, Params);
+	if (!Part)
+	{
+		return nullptr;
+	}
+	Part->SetActorEnableCollision(false);
+	if (OutSizeM)
+	{
+		// X, Y: full width. Z: height above the pivot.
+		FVector Origin, Extent;
+		Part->GetActorBounds(false, Origin, Extent, true);
+		*OutSizeM = FVector(Extent.X * 2.0, Extent.Y * 2.0, Origin.Z + Extent.Z) / 100.0;
+	}
+	if (Part->GetRootComponent())
+	{
+		Part->GetRootComponent()->SetMobility(EComponentMobility::Movable);
+	}
+	Part->AttachToComponent(Parent, FAttachmentTransformRules::KeepRelativeTransform);
+	Part->SetActorRelativeLocation(LocationM * 100.0);
+	Part->SetActorRelativeRotation(Rotation);
+	PartActors.Add(Part);
+	return Part;
+}
+
+UClass* AOrbitalFlightPlayback::PartClass(const Orbital::Id& PartId)
+{
+	const FString Name = ToFString(PartId);
+	return LoadClass<AActor>(nullptr, *FString::Printf(TEXT("/Game/Parts/BP_%s.BP_%s_C"), *Name, *Name));
+}
+
+// Stacks the rocket and the probe from the design's own part list. Returns false, without
+// spawning anything, when a part has no Blueprint; the caller then falls back to basic shapes.
+bool AOrbitalFlightPlayback::BuildVehicleFromParts(const Orbital::SpacecraftDesign& Sc, const Orbital::LauncherDesign& Lv)
+{
+	Orbital::Ids Needed = {Lv.firstTank, Lv.firstEngine, Lv.secondTank, Lv.secondEngine, Lv.fairing, "sep_system",
+		Sc.bus, Sc.engine, Sc.antenna, Sc.computer};
+	for (const Orbital::Ids* List : {&Sc.tanks, &Sc.adcs, &Sc.solar, &Sc.battery, &Sc.instruments})
+	{
+		Needed.insert(Needed.end(), List->begin(), List->end());
+	}
+	for (const Orbital::Id& Id : Needed)
+	{
+		if (!Id.empty() && !PartClass(Id))
+		{
+			UE_LOG(LogOrbitalFlight, Warning, TEXT("No part Blueprint /Game/Parts/BP_%s; using basic shapes"), *ToFString(Id));
+			return false;
+		}
+	}
+	FVector Size;
+
+	// ---- Stage 1: engines, tank, separation system
+	USceneComponent* S1 = MakeGroup(Stage1, TEXT("Stage1"), 0.0);
+	const int32 EngineCount = FMath::Clamp(Lv.firstEngineCount, 1, 4);
+	TArray<AActor*> Engines;
+	FVector EngineSize = FVector::ZeroVector;
+	for (int32 Index = 0; Index < EngineCount; ++Index)
+	{
+		Engines.Add(SpawnPart(Lv.firstEngine, S1, FVector::ZeroVector, FRotator::ZeroRotator, &EngineSize));
+	}
+	const double Ring = EngineCount > 1 ? FMath::Min(0.95, RocketDiameterM / 2.0 - EngineSize.X / 2.0) : 0.0;
+	for (int32 Index = 0; Index < EngineCount; ++Index)
+	{
+		const double Angle = 2.0 * UE_DOUBLE_PI * Index / EngineCount;
+		if (Engines[Index])
+		{
+			Engines[Index]->SetActorRelativeLocation(FVector(Ring * FMath::Cos(Angle), Ring * FMath::Sin(Angle), 0.0) * 100.0);
+		}
+	}
+	double Z = EngineSize.Z;
+	SpawnPart(Lv.firstTank, S1, FVector(0, 0, Z), FRotator::ZeroRotator, &Size);
+	Z += Size.Z;
+	SpawnPart("sep_system", S1, FVector(0, 0, Z), FRotator::ZeroRotator, &Size);
+	Stage1TopM = Z + Size.Z;
+
+	// ---- Stage 2: engine, tank, separation system
+	USceneComponent* S2 = MakeGroup(Stage2, TEXT("Stage2"), Stage1TopM);
+	SpawnPart(Lv.secondEngine, S2, FVector::ZeroVector, FRotator::ZeroRotator, &Size);
+	Z = Size.Z;
+	SpawnPart(Lv.secondTank, S2, FVector(0, 0, Z), FRotator::ZeroRotator, &Size);
+	Z += Size.Z;
+	SpawnPart("sep_system", S2, FVector(0, 0, Z), FRotator::ZeroRotator, &Size);
+	Stage2TopM = Stage1TopM + Z + Size.Z;
+
+	// ---- Probe: bus with everything attached to it
+	USceneComponent* P = MakeGroup(Probe, TEXT("Probe"), Stage2TopM);
+	USceneComponent* PanelRoot = MakeGroup(Panels, TEXT("Panels"), 0.0);
+	PanelRoot->AttachToComponent(P, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+	struct FPlaced
+	{
+		AActor* Actor = nullptr;
+		FVector Size = FVector::ZeroVector;
+	};
+	const auto Measure = [&](const Orbital::Id& Id)
+	{
+		FPlaced Placed;
+		Placed.Actor = SpawnPart(Id, P, FVector::ZeroVector, FRotator::ZeroRotator, &Placed.Size);
+		return Placed;
+	};
+	const auto MoveTo = [](const FPlaced& Placed, const FVector& LocationM)
+	{
+		if (Placed.Actor)
+		{
+			Placed.Actor->SetActorRelativeLocation(LocationM * 100.0);
+		}
+	};
+	const FPlaced Bus = Measure(Sc.bus);
+	const FPlaced Engine = Measure(Sc.engine);
+	TArray<FPlaced> Tanks, Equipment;
+	for (const Orbital::Id& Id : Sc.tanks)
+	{
+		Tanks.Add(Measure(Id));
+	}
+	Orbital::Ids EquipmentIds = Sc.adcs;
+	EquipmentIds.insert(EquipmentIds.end(), Sc.battery.begin(), Sc.battery.end());
+	EquipmentIds.push_back(Sc.computer);
+	for (const Orbital::Id& Id : EquipmentIds)
+	{
+		if (!Id.empty())
+		{
+			Equipment.Add(Measure(Id));
+		}
+	}
+	// Tanks sit on the +X/-X faces unless solar arrays need those faces; then they hang under the bus.
+	const bool bTanksOnSides = Sc.solar.size() <= 2;
+	double BaseZ = Engine.Size.Z; // bus bottom: room for whatever hangs underneath
+	for (const FPlaced& Item : Equipment)
+	{
+		BaseZ = FMath::Max(BaseZ, Item.Size.Z);
+	}
+	for (const FPlaced& Tank : Tanks)
+	{
+		BaseZ = bTanksOnSides ? BaseZ : FMath::Max(BaseZ, Tank.Size.Z);
+	}
+	const FVector BusSize = Bus.Size.IsNearlyZero() ? FVector(1.0, 1.0, 1.2) : Bus.Size;
+	MoveTo(Bus, FVector(0, 0, BaseZ));
+	MoveTo(Engine, FVector(0, 0, BaseZ - Engine.Size.Z));
+	for (int32 Index = 0; Index < Equipment.Num(); ++Index)
+	{
+		const double Angle = UE_DOUBLE_PI / 4.0 + 2.0 * UE_DOUBLE_PI * Index / Equipment.Num();
+		const double Radius = 0.33 * FMath::Min(BusSize.X, BusSize.Y);
+		MoveTo(Equipment[Index], FVector(Radius * FMath::Cos(Angle), Radius * FMath::Sin(Angle), BaseZ - Equipment[Index].Size.Z));
+	}
+	for (int32 Index = 0; Index < Tanks.Num(); ++Index)
+	{
+		const double Side = Index % 2 == 0 ? 1.0 : -1.0;
+		const FVector& TankSize = Tanks[Index].Size;
+		MoveTo(Tanks[Index], bTanksOnSides
+			? FVector(Side * (BusSize.X / 2.0 + TankSize.X / 2.0), 0, BaseZ + BusSize.Z / 2.0 - TankSize.Z / 2.0)
+			: FVector(Side * (Engine.Size.X / 2.0 + TankSize.X / 2.0 + 0.05), 0, BaseZ - TankSize.Z));
+	}
+	// Named mount points on the bus Blueprints: top, bottom, side_a..side_d, deck_a..deck_e.
+	const auto Socket = [&](const FString& Name, FVector& OutLocationM, FRotator& OutRotation)
+	{
+		if (Bus.Actor)
+		{
+			for (UActorComponent* Component : Bus.Actor->GetComponents())
+			{
+				const USceneComponent* Scene = Cast<USceneComponent>(Component);
+				if (Scene && Scene->GetName().Equals(Name, ESearchCase::IgnoreCase))
+				{
+					OutLocationM = Scene->GetRelativeLocation() / 100.0 + FVector(0, 0, BaseZ);
+					OutRotation = Scene->GetRelativeRotation();
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+	const double DeckZ = BaseZ + BusSize.Z;
+	FVector Location;
+	FRotator Rotation;
+	FVector AntennaSize = FVector::ZeroVector;
+	if (!Socket(TEXT("top"), Location, Rotation))
+	{
+		Location = FVector(0, 0, DeckZ);
+	}
+	SpawnPart(Sc.antenna, P, Location, FRotator::ZeroRotator, &AntennaSize);
+	for (int32 Index = 0; Index < static_cast<int32>(Sc.instruments.size()); ++Index)
+	{
+		if (!Socket(FString::Printf(TEXT("deck_%c"), TEXT('a') + Index), Location, Rotation))
+		{
+			const double Angle = UE_DOUBLE_PI / 4.0 + UE_DOUBLE_PI / 2.0 * Index;
+			Location = FVector(FMath::Cos(Angle) * BusSize.X * 0.33, FMath::Sin(Angle) * BusSize.Y * 0.33, DeckZ);
+		}
+		SpawnPart(Sc.instruments[Index], P, Location, FRotator::ZeroRotator, &Size);
+	}
+	// Solar arrays: hinge on a side face, wing along the socket's +Y. Hidden under the fairing.
+	const TCHAR* const SideNames[] = {TEXT("side_a"), TEXT("side_b"), TEXT("side_c"), TEXT("side_d")};
+	const FVector SideFallback[] = {FVector(0, BusSize.Y / 2.0, 0), FVector(0, -BusSize.Y / 2.0, 0),
+		FVector(BusSize.X / 2.0, 0, 0), FVector(-BusSize.X / 2.0, 0, 0)};
+	const double SideYaw[] = {0.0, 180.0, -90.0, 90.0};
+	double LongestPanel = 0;
+	for (int32 Index = 0; Index < FMath::Min(4, static_cast<int32>(Sc.solar.size())); ++Index)
+	{
+		if (!Socket(SideNames[Index], Location, Rotation))
+		{
+			Location = SideFallback[Index] + FVector(0, 0, BaseZ + BusSize.Z / 2.0);
+			Rotation = FRotator(0, SideYaw[Index], 0);
+		}
+		SpawnPart(Sc.solar[Index], PanelRoot, Location - FVector(0, 0, 0.5), Rotation, &Size); // wing is 1 m wide
+		LongestPanel = FMath::Max(LongestPanel, Size.Y);
+	}
+	ProbeHeightM = DeckZ + FMath::Max(AntennaSize.Z, 0.3);
+	ProbeSpanM = FMath::Max(ProbeHeightM + 0.5, BusSize.Y + 2.0 * LongestPanel + 0.2);
+
+	// ---- Fairing around the probe
+	USceneComponent* F = MakeGroup(Fairing, TEXT("Fairing"), Stage2TopM);
+	SpawnPart(Lv.fairing, F, FVector::ZeroVector, FRotator::ZeroRotator, &Size);
+	FairingHeightM = Size.Z;
+	TotalHeightM = Stage2TopM + FairingHeightM;
+	return true;
+}
+
+// ---------------------------------------------------------------- start
+
+bool AOrbitalFlightPlayback::StartFlight(const FOrbitalAssemblyData& Data, const Orbital::AssemblySnapshot& Snapshot,
+	const Orbital::MissionResult& Result)
+{
+	return StartFlight(Data.Parts, Data.Mission, Snapshot.spacecraft, Snapshot.launcher, Result);
+}
+
+bool AOrbitalFlightPlayback::StartFlight(const Orbital::Catalog& Catalog, const Orbital::Mission& Mission,
+	const Orbital::SpacecraftDesign& Spacecraft, const Orbital::LauncherDesign& Launcher, const Orbital::MissionResult& Result)
+{
+	if (bPlaying)
+	{
+		return false;
+	}
+	// The outcome was decided by Evaluate(); the timeline only replays it (and ends at the failing event).
+	Show = Orbital::BuildTimeline(Catalog, Mission, Spacecraft, Launcher, Result);
+	if (Show.empty())
+	{
+		return false;
+	}
 	for (size_t Index = 1; Index < Show.size(); ++Index)
 	{
 		Show[Index].displayTimeS = FMath::Max(Show[Index].displayTimeS, Show[Index - 1].displayTimeS + MinEventDwellS);
 	}
 	LiftoffTwr = Result.lv.firstTwr;
-	BuildVehicle(Catalog, Spacecraft, Launcher);
 
 	// The pad is at the world origin (L_Mission). Stand the rocket on whatever is there.
 	PadCm = FVector(0, 0, 600);
@@ -317,60 +566,150 @@ void AOrbitalFlightPlayback::StartFlight(const Orbital::Catalog& Catalog, const 
 	{
 		PadCm = Hit.Location;
 	}
+	SetActorLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+	bool bFromParts = false;
+	if (Show.size() > 1) // a refused launch has only the report event and no vehicle
+	{
+		bFromParts = BuildVehicleFromParts(Spacecraft, Launcher);
+		if (!bFromParts)
+		{
+			BuildVehicle(Catalog, Spacecraft, Launcher);
+		}
+	}
 	SetActorLocationAndRotation(PadCm, FRotator::ZeroRotator);
 
 	bTestMode = FParse::Param(FCommandLine::Get(), TEXT("OrbitalFlightTest"));
+	Report = FOrbitalFlightReport();
 	DisplayNow = 0;
 	NextEvent = 0;
 	CurrentEvent = -1;
 	bFinished = false;
 	bPlaying = true;
-	UE_LOG(LogOrbitalFlight, Display, TEXT("Flight started: %d events, rocket %.1f m tall, pad at Z=%.0f cm"),
-		static_cast<int32>(Show.size()), TotalHeightM, PadCm.Z);
+	UE_LOG(LogOrbitalFlight, Display, TEXT("Flight started: %d events, rocket %.1f m tall (%s, %d part actors), pad at Z=%.0f cm"),
+		static_cast<int32>(Show.size()), TotalHeightM, bFromParts ? TEXT("part Blueprints") : TEXT("basic shapes"),
+		PartActors.Num(), PadCm.Z);
 	for (const Orbital::TimelineEvent& Event : Show)
 	{
-		UE_LOG(LogOrbitalFlight, Display, TEXT("  show %.2f s  %s  [%s/%s]"), Event.displayTimeS,
-			*ToFString(Event.event), *ToFString(Event.vehicle), *ToFString(Event.camera));
+		UE_LOG(LogOrbitalFlight, Display, TEXT("  show %.2f s  T+%.0f s  %s  [%s]"), Event.displayTimeS, Event.missionTimeS,
+			*ToFString(Event.event), *ToFString(Orbital::CameraTag(Event)));
 	}
+	return true;
 }
 
-bool AOrbitalFlightPlayback::StartTCA()
+// Reference designs from TEST_CASES.md, built from the catalog presets. Used until the game
+// state object hands over the player's own design through StartFlight().
+bool AOrbitalFlightPlayback::StartCase(const FString& CaseName)
 {
-	DemoScreen = NewObject<UOrbitalAssemblyScreen>(this);
-	DemoScreen->InitBuiltInCatalog();
-	static const TCHAR* const ProbeParts[] = {
-		TEXT("bus_small"), TEXT("sc_tank_s"), TEXT("sc_engine_mono"), TEXT("rcs"), TEXT("solar_s"),
-		TEXT("battery_s"), TEXT("antenna_lga"), TEXT("obc_basic"), TEXT("inst_neutron")};
-	static const TCHAR* const RocketParts[] = {
-		TEXT("s1_tank_200"), TEXT("s1_engine_kl190"), TEXT("sep_system"), TEXT("s2_tank_7"),
-		TEXT("s2_engine_hl10"), TEXT("fairing_s")};
-	bool bBuilt = true;
-	for (const TCHAR* Part : ProbeParts)
+	FOrbitalCatalog Catalog;
+	FString Error;
+	const FString Path = FPaths::Combine(FPaths::ProjectDir(), TEXT("Docs/CLAUDE_RESEARCH/PART_CATALOG.json"));
+	if (!LoadOrbitalCatalog(Path, Catalog, Error))
 	{
-		bBuilt = DemoScreen->Attach(Part).bOk && bBuilt;
-	}
-	bBuilt = DemoScreen->SetPropellant(130.0).bOk && bBuilt;
-	bBuilt = DemoScreen->SetOrbit(TEXT("LPO_100")).bOk && bBuilt;
-	for (const TCHAR* Part : RocketParts)
-	{
-		bBuilt = DemoScreen->Attach(Part).bOk && bBuilt;
-	}
-	bBuilt = DemoScreen->SetStage1EngineCount(2).bOk && bBuilt;
-	const Orbital::AssemblySnapshot* Snapshot = DemoScreen->GetSnapshot();
-	const FOrbitalAssemblyData* Data = DemoScreen->GetData();
-	if (!bBuilt || !Snapshot || !Data)
-	{
-		UE_LOG(LogOrbitalFlight, Error, TEXT("TC-A could not be assembled; flight not started"));
+		UE_LOG(LogOrbitalFlight, Error, TEXT("Could not load %s: %s"), *Path, *Error);
 		return false;
 	}
-	const Orbital::MissionResult Result = Orbital::Evaluate(
-		Data->Parts, Data->Mission, Snapshot->spacecraft, Snapshot->launcher, "O1_ICE", "normal");
-	const Orbital::Timeline Timeline = Orbital::BuildTimeline(
-		Data->Parts, Data->Mission, Snapshot->spacecraft, Snapshot->launcher, Result);
-	UE_LOG(LogOrbitalFlight, Display, TEXT("TC-A score %.4f (expected 33.5111), %d timeline events"),
-		Result.score, static_cast<int32>(Timeline.size()));
-	StartFlight(Data->Parts, Snapshot->spacecraft, Snapshot->launcher, Result, Timeline);
-	return bPlaying;
+	const FString Case = CaseName.ToUpper();
+	const bool bCaseA = Case == TEXT("TC-A");
+	const Orbital::SpacecraftDesign* Preset = Catalog.SpacecraftPresets.Find(bCaseA ? TEXT("SC_PROSPECTOR") : TEXT("SC_SURVEYOR"));
+	const Orbital::LauncherDesign* Rocket = Catalog.LauncherPresets.Find(bCaseA ? TEXT("LV_LIGHT") : TEXT("LV_MID"));
+	if (!Preset || !Rocket)
+	{
+		UE_LOG(LogOrbitalFlight, Error, TEXT("%s: catalog preset missing"), *Case);
+		return false;
+	}
+	Orbital::SpacecraftDesign Design = *Preset;
+	if (Case == TEXT("TC-D"))
+	{
+		Design.propKg = 150.0;
+	}
+	else if (Case == TEXT("TC-E"))
+	{
+		Design.battery = {"battery_s"};
+	}
+	else if (Case == TEXT("TC-F"))
+	{
+		Design.solar = {"solar_s"};
+	}
+	else if (!bCaseA && Case != TEXT("TC-B"))
+	{
+		UE_LOG(LogOrbitalFlight, Error, TEXT("Unknown flight case '%s' (use TC-A, TC-B, TC-D, TC-E or TC-F)"), *CaseName);
+		return false;
+	}
+	const Orbital::MissionResult Result = Orbital::Evaluate(Catalog.Parts, Catalog.Mission, Design, *Rocket, "O1_ICE", "normal");
+	UE_LOG(LogOrbitalFlight, Display, TEXT("%s: score %.4f, success %s, fail phase '%s'"), *Case, Result.score,
+		Result.success ? TEXT("yes") : TEXT("no"), *ToFString(Result.failPhase));
+	return StartFlight(Catalog.Parts, Catalog.Mission, Design, *Rocket, Result);
+}
+
+void AOrbitalFlightPlayback::RequestRedesign()
+{
+	if (!Report.bVisible || Report.bRedesignRequested)
+	{
+		return;
+	}
+	Report.bRedesignRequested = true;
+	UE_LOG(LogOrbitalFlight, Display, TEXT("Redesign requested from the report screen (%d listener(s))"),
+		OnRedesignRequested.IsBound() ? 1 : 0);
+	OnRedesignRequested.Broadcast();
+}
+
+// Cause and Fix columns of the validation table in ORBITAL_UI_COPY_v2.1.md, keyed by code.
+void AOrbitalFlightPlayback::FillReport(const Orbital::TimelineEvent& Event)
+{
+	TMap<FString, TPair<FString, FString>> Copy;
+	FString Text;
+	for (const TCHAR* Relative : {TEXT("Docs/CLAUDE_RESEARCH/ORBITAL_UI_COPY_v2.1.md"), TEXT("Source/ORBITAL_SpaceApps/ORBITAL_UI_COPY_v2.1.md")})
+	{
+		if (FFileHelper::LoadFileToString(Text, *FPaths::Combine(FPaths::ProjectDir(), Relative)))
+		{
+			break;
+		}
+	}
+	TArray<FString> Lines;
+	Text.ParseIntoArrayLines(Lines);
+	for (const FString& Line : Lines)
+	{
+		TArray<FString> Cells;
+		Line.ParseIntoArray(Cells, TEXT("|"), false);
+		if (Cells.Num() >= 6)
+		{
+			const FString Code = Cells[1].TrimStartAndEnd();
+			if (Code.Len() > 2 && Code[1] == TEXT('_') && Code == Code.ToUpper())
+			{
+				Copy.Add(Code, TPair<FString, FString>(Cells[3].TrimStartAndEnd(), Cells[4].TrimStartAndEnd()));
+			}
+		}
+	}
+
+	Report = FOrbitalFlightReport();
+	Report.bVisible = true;
+	Report.bSuccess = Event.success;
+	Report.Title = ToFString(Event.message);
+	Report.PhaseReached = ToFString(Event.phaseReached);
+	Report.Score = Event.score;
+	Report.Science = Event.science;
+	TArray<FString> Codes;
+	if (!Event.cause.empty())
+	{
+		Codes.Add(ToFString(Event.cause));
+	}
+	for (const Orbital::Id& Code : Event.block)
+	{
+		Codes.AddUnique(ToFString(Code));
+	}
+	for (int32 Index = 0; Index < FMath::Min(3, Codes.Num()); ++Index)
+	{
+		const TPair<FString, FString>* Row = Copy.Find(Codes[Index]);
+		Report.Codes.Add(Codes[Index]);
+		Report.Causes.Add(Row ? Row->Key : FString::Printf(TEXT("%s (no text found in ORBITAL_UI_COPY_v2.1.md)"), *Codes[Index]));
+		Report.Fixes.Add(Row ? Row->Value : FString());
+	}
+	UE_LOG(LogOrbitalFlight, Display, TEXT("Report: %s | phase reached '%s' | score %.1f | science %.1f | codes %s"),
+		*Report.Title, *Report.PhaseReached, Report.Score, Report.Science, *FString::Join(Report.Codes, TEXT(",")));
+	for (int32 Index = 0; Index < Report.Codes.Num(); ++Index)
+	{
+		UE_LOG(LogOrbitalFlight, Display, TEXT("Report %s | Cause: %s | Fix: %s"), *Report.Codes[Index], *Report.Causes[Index], *Report.Fixes[Index]);
+	}
 }
 
 // ---------------------------------------------------------------- playback
@@ -416,7 +755,7 @@ void AOrbitalFlightPlayback::MakeDebris(FGroup& Group, const FVector& VelocityCm
 
 ACameraActor* AOrbitalFlightPlayback::FindCamera(const Orbital::TimelineEvent& Event) const
 {
-	const FName Tag(*ToFString(Event.vehicle + "/" + Event.camera));
+	const FName Tag(*ToFString(Orbital::CameraTag(Event)));
 	for (TActorIterator<ACameraActor> It(GetWorld()); It; ++It)
 	{
 		if (It->ActorHasTag(Tag))
@@ -601,6 +940,7 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	{
 		Mode = EMode::Idle;
 		SetFill(false);
+		FillReport(Event);
 	}
 	else if (Camera)
 	{
@@ -712,6 +1052,10 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 			FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir() / TEXT("Screenshots/FlightTest") /
 				FString::Printf(TEXT("%02d_%s_%d.png"), CurrentEvent, *ToFString(Show[CurrentEvent].event), ShotKey % 2), false, false);
 		}
+		if (bFinished && FinishedForS > 3.5 && !Report.bRedesignRequested)
+		{
+			RequestRedesign(); // exercise the report button path
+		}
 		if (bFinished && FinishedForS > 5.0)
 		{
 			UKismetSystemLibrary::QuitGame(this, Player, EQuitPreference::Quit, false);
@@ -726,16 +1070,8 @@ FString AOrbitalFlightPlayback::GetClockText() const
 	{
 		return FString();
 	}
-	double Seconds = Show[CurrentEvent].missionTimeS;
-	if (CurrentEvent + 1 < Count)
-	{
-		const double Start = Show[CurrentEvent].displayTimeS, End = Show[CurrentEvent + 1].displayTimeS;
-		if (End > Start)
-		{
-			Seconds = FMath::Lerp(Seconds, Show[CurrentEvent + 1].missionTimeS,
-				FMath::Clamp((DisplayNow - Start) / (End - Start), 0.0, 1.0));
-		}
-	}
+	// Each event shows its own mission time; the display clock is compressed, so nothing is interpolated.
+	const double Seconds = Show[CurrentEvent].missionTimeS;
 	if (Seconds < 3600.0)
 	{
 		return FString::Printf(TEXT("T+ %02d:%02d"), static_cast<int32>(Seconds) / 60, static_cast<int32>(Seconds) % 60);
@@ -775,6 +1111,11 @@ void AOrbitalFlightHUD::DrawHUD()
 	UFont* Font = GEngine->GetLargeFont();
 	const float TextScale = 1.9f * Unit, SmallScale = 1.3f * Unit;
 	const FLinearColor Panel(0.0f, 0.0f, 0.0f, 0.65f);
+	if (Flight->GetReport().bVisible)
+	{
+		DrawReport(Flight->GetReport(), Width, Height, Unit, Font);
+		return;
+	}
 
 	// Status line: word-wrapped and centred at the bottom.
 	TArray<FString> Lines;
@@ -845,12 +1186,116 @@ void AOrbitalFlightHUD::DrawHUD()
 	}
 }
 
+TArray<FString> AOrbitalFlightHUD::Wrap(const FString& Text, float MaxWidth, UFont* Font, float Scale) const
+{
+	TArray<FString> Lines, Words;
+	Text.ParseIntoArray(Words, TEXT(" "));
+	FString Line;
+	for (const FString& Word : Words)
+	{
+		const FString Candidate = Line.IsEmpty() ? Word : Line + TEXT(" ") + Word;
+		float CandidateWidth = 0, CandidateHeight = 0;
+		GetTextSize(Candidate, CandidateWidth, CandidateHeight, Font, Scale);
+		if (CandidateWidth > MaxWidth && !Line.IsEmpty())
+		{
+			Lines.Add(Line);
+			Line = Word;
+		}
+		else
+		{
+			Line = Candidate;
+		}
+	}
+	if (!Line.IsEmpty())
+	{
+		Lines.Add(Line);
+	}
+	return Lines;
+}
+
+// Report screen: result, phase reached, score, cause and fix for each result code, Redesign button.
+void AOrbitalFlightHUD::DrawReport(const FOrbitalFlightReport& Report, float Width, float Height, float Unit, UFont* Font)
+{
+	struct FRow
+	{
+		FString Text;
+		float Scale = 1.0f;
+		FLinearColor Color = FLinearColor::White;
+		float Gap = 0.0f;
+	};
+	const float TitleScale = 2.6f * Unit, TextScale = 1.7f * Unit;
+	const float PanelWidth = Width * 0.72f, Left = (Width - PanelWidth) * 0.5f, Padding = 26.0f * Unit;
+	TArray<FRow> Rows;
+	const auto Add = [&](const FString& Text, float Scale, const FLinearColor& Color, float Gap)
+	{
+		bool bFirst = true;
+		for (const FString& Line : Wrap(Text, PanelWidth - Padding * 2.0f, Font, Scale))
+		{
+			FRow Row;
+			Row.Text = Line;
+			Row.Scale = Scale;
+			Row.Color = Color;
+			Row.Gap = bFirst ? Gap : 0.0f;
+			Rows.Add(Row);
+			bFirst = false;
+		}
+	};
+	Add(Report.Title, TitleScale, Report.bSuccess ? FLinearColor(0.45f, 1.0f, 0.5f) : FLinearColor(1.0f, 0.6f, 0.3f), 0.0f);
+	Add(FString::Printf(TEXT("Phase reached: %s"), *Report.PhaseReached.ToUpper()), TextScale, FLinearColor::White, 16.0f * Unit);
+	Add(FString::Printf(TEXT("Score: %.1f     Science: %.1f"), Report.Score, Report.Science), TextScale, FLinearColor::White, 4.0f * Unit);
+	for (int32 Index = 0; Index < Report.Codes.Num(); ++Index)
+	{
+		Add(Report.Codes[Index], TextScale, FLinearColor(0.7f, 0.85f, 1.0f), 18.0f * Unit);
+		Add(TEXT("Cause: ") + Report.Causes[Index], TextScale, FLinearColor::White, 4.0f * Unit);
+		if (!Report.Fixes[Index].IsEmpty())
+		{
+			Add(TEXT("Fix: ") + Report.Fixes[Index], TextScale, FLinearColor::White, 4.0f * Unit);
+		}
+	}
+
+	const FString Label = Report.bRedesignRequested ? TEXT("Redesign requested") : TEXT("Redesign");
+	float LabelWidth = 0, LabelHeight = 0;
+	GetTextSize(Label, LabelWidth, LabelHeight, Font, TextScale);
+	const FVector2D ButtonSize(LabelWidth + 48.0f * Unit, LabelHeight + 22.0f * Unit);
+	float ContentHeight = 0;
+	TArray<float> RowHeights;
+	for (const FRow& Row : Rows)
+	{
+		float RowWidth = 0, RowHeight = 0;
+		GetTextSize(TEXT("Ag"), RowWidth, RowHeight, Font, Row.Scale);
+		RowHeights.Add(RowHeight * 1.2f);
+		ContentHeight += Row.Gap + RowHeight * 1.2f;
+	}
+	const float PanelHeight = ContentHeight + Padding * 3.0f + ButtonSize.Y;
+	const float Top = FMath::Max(8.0f * Unit, (Height - PanelHeight) * 0.5f);
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.82f), Left, Top, PanelWidth, PanelHeight);
+	float Y = Top + Padding;
+	for (int32 Index = 0; Index < Rows.Num(); ++Index)
+	{
+		Y += Rows[Index].Gap;
+		DrawText(Rows[Index].Text, Rows[Index].Color, Left + Padding, Y, Font, Rows[Index].Scale);
+		Y += RowHeights[Index];
+	}
+	const FVector2D ButtonPosition(Left + (PanelWidth - ButtonSize.X) * 0.5f, Top + PanelHeight - Padding - ButtonSize.Y);
+	DrawRect(Report.bRedesignRequested ? FLinearColor(0.25f, 0.25f, 0.25f, 0.9f) : FLinearColor(0.1f, 0.35f, 0.75f, 0.95f),
+		ButtonPosition.X, ButtonPosition.Y, ButtonSize.X, ButtonSize.Y);
+	DrawText(Label, FLinearColor::White, ButtonPosition.X + 24.0f * Unit, ButtonPosition.Y + 11.0f * Unit, Font, TextScale);
+	if (!Report.bRedesignRequested)
+	{
+		AddHitBox(ButtonPosition, ButtonSize, TEXT("OrbitalRedesign"), true);
+	}
+}
+
 void AOrbitalFlightHUD::NotifyHitBoxClick(FName BoxName)
 {
 	Super::NotifyHitBoxClick(BoxName);
 	if (BoxName == TEXT("OrbitalSkip") && Playback.IsValid())
 	{
 		Playback->Skip();
+	}
+	if (BoxName == TEXT("OrbitalRedesign") && Playback.IsValid())
+	{
+		Playback->RequestRedesign();
 	}
 }
 
@@ -866,6 +1311,8 @@ void UOrbitalFlightSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	}
 	if (AOrbitalFlightPlayback* Flight = InWorld.SpawnActor<AOrbitalFlightPlayback>())
 	{
-		Flight->StartTCA();
+		FString Case = CVarOrbitalFlightCase.GetValueOnGameThread();
+		FParse::Value(FCommandLine::Get(), TEXT("OrbitalFlightCase="), Case);
+		Flight->StartCase(Case);
 	}
 }

@@ -1,14 +1,19 @@
 // ORBITAL flight playback: replays Orbital::BuildTimeline() in the L_Mission scene.
-// - Each event switches to the camera actor whose Actor Tag is "<vehicle>/<camera>"
+// - StartFlight(Data, Snapshot, Result) plays the design it is given. The outcome comes from
+//   Orbital::Evaluate(); the timeline only replays it and ends at the failing event.
+// - Each event switches to the camera actor whose Actor Tag is Orbital::CameraTag(event)
 //   (for example "launcher/pad_wide"). Actor labels do not exist in packaged builds.
-// - The rocket is stacked from basic shapes (+Z up): it lifts off, drops stage 1 at
-//   STAGE1_SEPARATION, releases the fairing, and leaves stage 2 at TLI_COMPLETE so the
-//   probe is visible.
-// - The status line at the bottom uses ORBITAL_TIMELINE_COPY_v2.1.md, looked up by event ID.
+// - The rocket and probe are stacked from the design's own part list with the part Blueprints
+//   in Content/Parts (BP_<catalog id>, pivot at the bottom, +Z up). If one is missing the
+//   vehicle is built from basic shapes instead.
+// - The status line uses ORBITAL_TIMELINE_COPY_v2.1.md, looked up by event ID.
 // - Skip (button or Space) jumps with Orbital::SkipTarget().
+// - The report screen shows the phase reached, the cause and fix text for the result codes
+//   (ORBITAL_UI_COPY_v2.1.md), the score, and a Redesign button (OnRedesignRequested).
 // All UI is drawn in C++ (AHUD canvas). No Blueprint widgets, no extra module dependencies.
 //
-// Play in Editor on L_Mission starts TC-A automatically. Turn off with: orbital.FlightDemo 0
+// Play on L_Mission starts a reference case until the game state hands over the player's design.
+// Console: orbital.FlightCase TC-A|TC-B|TC-D|TC-E|TC-F (before Play), orbital.FlightDemo 0 turns it off.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -20,12 +25,29 @@
 
 class ACameraActor;
 class APlayerController;
+class UFont;
 class UMaterialInterface;
-class UOrbitalAssemblyScreen;
 class UPointLightComponent;
 class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
+struct FOrbitalAssemblyData;
+namespace Orbital
+{
+struct AssemblySnapshot;
+}
+
+// What the report screen shows. Filled when the MISSION_REPORT event is reached.
+struct FOrbitalFlightReport
+{
+	bool bVisible = false;
+	bool bSuccess = false;
+	bool bRedesignRequested = false;
+	FString Title;        // the timeline's own report message
+	FString PhaseReached; // design, launch, ascent, parking, transfer, cruise, insertion, eclipse, operations
+	double Score = 0, Science = 0;
+	TArray<FString> Codes, Causes, Fixes; // one row per result code, text from ORBITAL_UI_COPY_v2.1.md
+};
 
 UCLASS()
 class ORBITAL_SPACEAPPS_API AOrbitalFlightPlayback : public AActor
@@ -36,23 +58,32 @@ public:
 	AOrbitalFlightPlayback();
 	virtual void Tick(float DeltaSeconds) override;
 
-	// Replays a timeline that Orbital::BuildTimeline() produced for this design and result.
-	void StartFlight(const Orbital::Catalog& Catalog, const Orbital::SpacecraftDesign& Spacecraft,
-		const Orbital::LauncherDesign& Launcher, const Orbital::MissionResult& Result,
-		const Orbital::Timeline& InTimeline);
+	// Plays the design in an assembly snapshot with the Orbital::Evaluate() result for it.
+	// Get Data and Snapshot from UOrbitalAssemblyScreen::GetData() / GetSnapshot().
+	bool StartFlight(const FOrbitalAssemblyData& Data, const Orbital::AssemblySnapshot& Snapshot,
+		const Orbital::MissionResult& Result);
+	bool StartFlight(const Orbital::Catalog& Catalog, const Orbital::Mission& Mission,
+		const Orbital::SpacecraftDesign& Spacecraft, const Orbital::LauncherDesign& Launcher,
+		const Orbital::MissionResult& Result);
 
-	// Builds TC-A through the assembly screen (same parts as the assembly demo) and plays it.
-	bool StartTCA();
+	// Reference designs from TEST_CASES.md: TC-A, TC-B, TC-D, TC-E, TC-F.
+	bool StartCase(const FString& CaseName);
 
 	// Skip button: before TLI jumps to TLI, afterwards to the next event (Orbital::SkipTarget).
 	UFUNCTION(BlueprintCallable, Category = "Orbital")
 	void Skip();
+
+	// Report screen "Redesign" button. The game state object binds to this to return to assembly.
+	UFUNCTION(BlueprintCallable, Category = "Orbital")
+	void RequestRedesign();
+	FSimpleMulticastDelegate OnRedesignRequested;
 
 	// Read by the HUD.
 	bool IsPlaying() const { return bPlaying; }
 	bool IsFinished() const { return bFinished; }
 	const FString& GetStatusMessage() const { return StatusMessage; }
 	const FString& GetStatusDetail() const { return StatusDetail; }
+	const FOrbitalFlightReport& GetReport() const { return Report; }
 	FString GetClockText() const;
 	FString GetPhaseText() const;
 
@@ -78,6 +109,11 @@ private:
 		const FVector& SizeM, const FLinearColor& Color, const FRotator& Rotation = FRotator::ZeroRotator);
 	void BuildVehicle(const Orbital::Catalog& Catalog, const Orbital::SpacecraftDesign& Spacecraft,
 		const Orbital::LauncherDesign& Launcher);
+	bool BuildVehicleFromParts(const Orbital::SpacecraftDesign& Spacecraft, const Orbital::LauncherDesign& Launcher);
+	AActor* SpawnPart(const Orbital::Id& PartId, USceneComponent* Parent, const FVector& LocationM,
+		const FRotator& Rotation, FVector* OutSizeM);
+	static UClass* PartClass(const Orbital::Id& PartId);
+	void FillReport(const Orbital::TimelineEvent& Event);
 
 	void ApplyEvent(int32 Index, APlayerController& Player);
 	void SetAttached(FGroup& Group, bool bAttached);
@@ -94,13 +130,14 @@ private:
 	UPROPERTY() TObjectPtr<UStaticMesh> SphereMesh;
 	UPROPERTY() TObjectPtr<UMaterialInterface> ShapeMaterial;
 	UPROPERTY() TObjectPtr<UPointLightComponent> FillLight;
-	UPROPERTY() TObjectPtr<UOrbitalAssemblyScreen> DemoScreen;
 	UPROPERTY() TObjectPtr<ACameraActor> ActiveCamera;
+	UPROPERTY() TArray<TObjectPtr<AActor>> PartActors;
 
 	FGroup Stage1, Stage2, Fairing, Probe, Panels;
 	double Stage1TopM = 0, Stage2TopM = 0, ProbeHeightM = 0, ProbeSpanM = 0, FairingHeightM = 0, TotalHeightM = 0;
 
 	Orbital::Timeline Show; // BuildTimeline() events; display times spaced so each event is seen
+	FOrbitalFlightReport Report;
 	double LiftoffTwr = 0;
 	double DisplayNow = 0;
 	int32 NextEvent = 0, CurrentEvent = -1;
@@ -120,7 +157,7 @@ private:
 	FString StatusMessage, StatusDetail;
 };
 
-// Canvas HUD: status line, mission clock and the Skip button. Created by the playback actor.
+// Canvas HUD: status line, mission clock, Skip button and the report screen.
 UCLASS()
 class ORBITAL_SPACEAPPS_API AOrbitalFlightHUD : public AHUD
 {
@@ -131,9 +168,13 @@ public:
 	virtual void NotifyHitBoxClick(FName BoxName) override;
 
 	TWeakObjectPtr<AOrbitalFlightPlayback> Playback;
+
+private:
+	TArray<FString> Wrap(const FString& Text, float MaxWidth, UFont* Font, float Scale) const;
+	void DrawReport(const FOrbitalFlightReport& Report, float Width, float Height, float Unit, UFont* Font);
 };
 
-// Starts the TC-A flight when a game world begins play on the L_Mission map.
+// Starts a reference flight when a game world begins play on the L_Mission map.
 UCLASS()
 class ORBITAL_SPACEAPPS_API UOrbitalFlightSubsystem : public UWorldSubsystem
 {
