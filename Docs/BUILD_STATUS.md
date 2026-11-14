@@ -13,7 +13,7 @@ Baseline: `main` at `3067b58`. Results below are attributed to the machine and t
 
 ## Verified on Ram's PC
 
-Win64 Development Editor built from `main` at `3067b58` with `Result: Succeeded`. The automation and flight results above are from Muhammet's PC.
+Win64 Development Editor: blank project built successfully; build of main (3067b58) in progress. The automation and flight results above are from Muhammet's PC.
 
 ## Standalone verification
 
