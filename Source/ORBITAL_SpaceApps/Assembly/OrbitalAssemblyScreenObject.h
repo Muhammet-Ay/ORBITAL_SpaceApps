@@ -66,6 +66,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Orbital")
 	bool InitFromProjectCatalog(FString& OutError);
 
+	// Old name, kept so callers written against the first version (Flight/OrbitalFlight.cpp)
+	// still compile. There is no built-in catalog any more: this loads PART_CATALOG.json
+	// like InitFromProjectCatalog and logs an error if that fails. Prefer InitFromProjectCatalog.
+	UFUNCTION(BlueprintCallable, Category = "Orbital")
+	void InitBuiltInCatalog();
+
 	// Fires after every successful change with the new snapshot JSON (dashboard refresh).
 	UPROPERTY(BlueprintAssignable, Category = "Orbital")
 	FOrbitalSnapshotChanged OnSnapshotChanged;

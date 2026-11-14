@@ -3,6 +3,8 @@
 #include "OrbitalCatalogLoader.h"
 #include "Misc/Paths.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogOrbitalAssemblyScreen, Log, All);
+
 namespace
 {
 FString ToFString(const std::string& Value)
@@ -68,6 +70,15 @@ bool UOrbitalAssemblyScreen::InitFromProjectCatalog(FString& OutError)
 	}
 	Init(Loaded.ToSharedRef());
 	return true;
+}
+
+void UOrbitalAssemblyScreen::InitBuiltInCatalog()
+{
+	FString Error;
+	if (!InitFromProjectCatalog(Error))
+	{
+		UE_LOG(LogOrbitalAssemblyScreen, Error, TEXT("PART_CATALOG.json did not load: %s"), *Error);
+	}
 }
 
 TArray<FOrbitalSocketRow> UOrbitalAssemblyScreen::GetSockets(const FString& SelectedPart) const

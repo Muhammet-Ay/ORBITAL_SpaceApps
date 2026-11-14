@@ -280,6 +280,13 @@ inline Timeline BuildTimeline(const Catalog& catalog, const Mission& m, const Sp
     return timeline;
 }
 
+// Actor Tag of the level camera for an event: "<vehicle>/<camera>", e.g. "launcher/pad_wide".
+// The flight view finds its camera actor by this tag, so the tag format has one definition.
+inline std::string CameraTag(const TimelineEvent& e)
+{
+    return e.vehicle + "/" + e.camera;
+}
+
 // One line per event. Used for logs and for the determinism test.
 inline std::string Describe(const TimelineEvent& e)
 {

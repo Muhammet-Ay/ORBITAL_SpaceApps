@@ -4,6 +4,7 @@
 #include "OrbitalBuiltInCatalog.h"
 #include <cstdio>
 #include <cstring>
+#include <set>
 using namespace Orbital;
 namespace {
 int g_checks = 0, g_failures = 0; bool g_verbose = false;
@@ -39,6 +40,7 @@ Run Fly(const char* label, SpacecraftDesign sc, const LauncherDesign& lv, const 
         if (e.batteryWh) CHECK(*e.batteryWh >= 0);
     }
     CHECK(reports == 1);
+    CHECK(CameraTag(run.t.front()) == run.t.front().vehicle + "/" + run.t.front().camera);
     CHECK(last.success == run.r.success && last.score == run.r.score && last.risk == run.r.risk &&
           last.block == run.r.block && last.warn == run.r.warn);
     return run;
@@ -49,12 +51,15 @@ int Count(const Timeline& t, const char* event)
 { int n = 0; for (const auto& e : t) n += e.event == event; return n; }
 SpacecraftDesign Surveyor() { return kSc.at("SC_SURVEYOR"); }
 
+std::set<std::string> tags;
 void FullMissions()
 {
     const Run a = Fly("TC-A", kSc.at("SC_PROSPECTOR"), kLv.at("LV_LIGHT"));
     const char* order[] = {"LIFTOFF", "STAGE1_SEPARATION", "FAIRING_RELEASE", "PARKING_ORBIT", "TLI_COMPLETE",
         "MIDCOURSE_CORRECTION", "INSERTION_BURN_START", "LUNAR_ORBIT_INSERTION", "FIRST_ECLIPSE", "OPERATIONS_COMPLETE", "MISSION_REPORT"};
     CHECK(a.t.size() == 11);
+    CHECK(CameraTag(a.t[0]) == "launcher/pad_wide" && CameraTag(a.t[5]) == "spacecraft/deep_space");
+    for (const auto& e : a.t) tags.insert(CameraTag(e));
     for (std::size_t i = 0; i < 11 && i < a.t.size(); ++i) CHECK(a.t[i].event == order[i]);
     CHECK(Near(a.r.score, 33.51111111111111, 1e-9) && a.t.back().phaseReached == "operations" && a.t.back().cause.empty());
     // Launch times: fixture t1_burn, and t_parking / t_tli counted from stage 2 ignition.
