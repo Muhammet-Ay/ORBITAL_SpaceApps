@@ -15,10 +15,10 @@ struct FOrbitalAssemblyData
 	Orbital::Mission Mission;
 	Orbital::AssemblyRules Rules;
 
-	// TEMPORARY: compiled-in copy of PART_CATALOG.json v2.1 (OrbitalBuiltInCatalog.h).
-	// After ram/engineering is merged, fill this from FOrbitalCatalog instead:
+	// Loads Docs/CLAUDE_RESEARCH/PART_CATALOG.json through the JSON adapter (OrbitalCatalogLoader):
 	// Parts, Mission, Rules.socketTree = Catalog.SocketTree, Rules.defaultOrbit = Catalog.DefaultOrbit.
-	static ORBITAL_SPACEAPPS_API TSharedRef<const FOrbitalAssemblyData> MakeBuiltIn();
+	// If the file cannot be loaded the loader error is logged and the data is empty.
+	static ORBITAL_SPACEAPPS_API TSharedRef<const FOrbitalAssemblyData> LoadFromCatalogFile();
 };
 
 USTRUCT(BlueprintType)
@@ -60,9 +60,9 @@ class ORBITAL_SPACEAPPS_API UOrbitalAssemblyScreen : public UObject
 public:
 	void Init(TSharedRef<const FOrbitalAssemblyData> InData);
 
-	// TEMPORARY: start from the compiled-in v2.1 catalog.
+	// Start from the v2.1 catalog file (PART_CATALOG.json).
 	UFUNCTION(BlueprintCallable, Category = "Orbital")
-	void InitBuiltInCatalog();
+	void InitCatalog();
 
 	// Fires after every successful change with the new snapshot JSON (dashboard refresh).
 	UPROPERTY(BlueprintAssignable, Category = "Orbital")

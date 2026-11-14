@@ -1,6 +1,9 @@
 #include "OrbitalAssemblyScreenObject.h"
 
-#include "OrbitalBuiltInCatalog.h"
+#include "../OrbitalCatalogLoader.h"
+#include "Misc/Paths.h"
+
+DEFINE_LOG_CATEGORY_STATIC(LogOrbitalCatalog, Log, All);
 
 namespace
 {
@@ -26,12 +29,21 @@ FOrbitalChangeResult Convert(const Orbital::ChangeResult& In)
 }
 } // namespace
 
-TSharedRef<const FOrbitalAssemblyData> FOrbitalAssemblyData::MakeBuiltIn()
+TSharedRef<const FOrbitalAssemblyData> FOrbitalAssemblyData::LoadFromCatalogFile()
 {
 	TSharedRef<FOrbitalAssemblyData> Result = MakeShared<FOrbitalAssemblyData>();
-	Result->Parts = OrbitalData::MakeCatalog();
-	Result->Mission = OrbitalData::MakeMission();
-	Result->Rules = OrbitalData::MakeRules(); // probeRequiresFairing stays false
+	const FString Path = FPaths::Combine(FPaths::ProjectDir(), TEXT("Docs/CLAUDE_RESEARCH/PART_CATALOG.json"));
+	FOrbitalCatalog Catalog;
+	FString Error;
+	if (!LoadOrbitalCatalog(Path, Catalog, Error))
+	{
+		UE_LOG(LogOrbitalCatalog, Error, TEXT("Could not load %s: %s"), *Path, *Error);
+		return Result;
+	}
+	Result->Parts = MoveTemp(Catalog.Parts);
+	Result->Mission = MoveTemp(Catalog.Mission);
+	Result->Rules.socketTree = MoveTemp(Catalog.SocketTree); // probeRequiresFairing stays false
+	Result->Rules.defaultOrbit = Catalog.DefaultOrbit;
 	return Result;
 }
 
@@ -46,9 +58,9 @@ void UOrbitalAssemblyScreen::Init(TSharedRef<const FOrbitalAssemblyData> InData)
 	});
 }
 
-void UOrbitalAssemblyScreen::InitBuiltInCatalog()
+void UOrbitalAssemblyScreen::InitCatalog()
 {
-	Init(FOrbitalAssemblyData::MakeBuiltIn());
+	Init(FOrbitalAssemblyData::LoadFromCatalogFile());
 }
 
 TArray<FOrbitalSocketRow> UOrbitalAssemblyScreen::GetSockets(const FString& SelectedPart) const

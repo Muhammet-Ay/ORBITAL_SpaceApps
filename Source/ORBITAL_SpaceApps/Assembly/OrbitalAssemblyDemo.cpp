@@ -92,7 +92,7 @@ void UOrbitalAssemblyDemoSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		return;
 	}
 	Screen = NewObject<UOrbitalAssemblyScreen>(this);
-	Screen->InitBuiltInCatalog();
+	Screen->InitCatalog();
 	TArray<FString> Lines;
 	const bool bOk = RunOrbitalAssemblyDemo(*Screen, Lines);
 	Lines.Add(bOk ? TEXT("ORBITAL assembly demo: ALL STEPS PASSED") : TEXT("ORBITAL assembly demo: FAILED"));
@@ -127,7 +127,7 @@ bool FOrbitalAssemblyDemoTest::RunTest(const FString& Parameters)
 	static_cast<void>(Parameters);
 	UOrbitalAssemblyScreen* TestScreen = NewObject<UOrbitalAssemblyScreen>();
 	TestScreen->AddToRoot();
-	TestScreen->InitBuiltInCatalog();
+	TestScreen->InitCatalog();
 	TArray<FString> Lines;
 	const bool bOk = RunOrbitalAssemblyDemo(*TestScreen, Lines);
 	TestScreen->RemoveFromRoot();
