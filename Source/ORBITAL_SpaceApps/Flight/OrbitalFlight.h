@@ -8,6 +8,12 @@
 //   vehicle is built from basic shapes instead.
 // - The status line uses ORBITAL_TIMELINE_COPY_v2.1.md, looked up by event ID.
 // - Skip (button or Space) jumps with Orbital::SkipTarget().
+// - The launch follows a gravity turn from Orbital::SimulateAscent() (OrbitalAscent.h): vertical
+//   rise, pitch-over, then thrust along the direction of travel. Telemetry and an attitude
+//   indicator are shown on the HUD. From liftoff to fairing release the view is one continuous
+//   shot from a camera that follows the rocket (right mouse and wheel still orbit and zoom).
+// - Map view (M key or the Map button): mission map that follows the flight (launch path and
+//   parking orbit, transfer to the Moon, lunar orbit) and a solar system map (OrbitalSolarSystem.h).
 // - The report screen shows the phase reached, the cause and fix text for the result codes
 //   (ORBITAL_UI_COPY_v2.1.md), the score, and a Redesign button (OnRedesignRequested).
 // All UI is drawn in C++ (AHUD canvas). No Blueprint widgets, no extra module dependencies.
@@ -21,6 +27,7 @@
 #include "GameFramework/HUD.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "../Assembly/OrbitalTimeline.h"
+#include "OrbitalAscent.h"
 #include "OrbitalFlight.generated.h"
 
 class ACameraActor;
@@ -49,6 +56,17 @@ struct FOrbitalFlightReport
 	FString PhaseReached; // design, launch, ascent, parking, transfer, cruise, insertion, eclipse, operations
 	double Score = 0, Science = 0;
 	TArray<FString> Codes, Causes, Fixes; // one row per result code, text from ORBITAL_UI_COPY_v2.1.md
+};
+
+// What the map view draws. Distances in metres, from the catalog's mission constants.
+struct FOrbitalMapState
+{
+	double EarthRadiusM = 0, ParkingRadiusM = 0, MoonAxisM = 0, MoonRadiusM = 0;
+	double LunarPeriapsisM = 0, LunarApoapsisM = 0; // from the Moon's centre
+	double TliS = -1, ArrivalS = -1;                // mission times; -1 if the flight never gets there
+	double MissionTimeS = 0;                        // interpolated between events, for motion on the map
+	double EventProgress = 0;                       // 0..1 through the current event
+	FString Event;
 };
 
 UCLASS()
@@ -89,6 +107,20 @@ public:
 	FString GetClockText() const;
 	FString GetPhaseText() const;
 
+	// Launch telemetry while the rocket climbs (altitude, speed, pitch, dynamic pressure) and one
+	// line saying what the rocket is doing and why. Both empty outside the ascent.
+	FString GetTelemetryText() const;
+	FString GetAscentLesson() const;
+	const Orbital::AscentProfile& GetAscent() const { return Ascent; }
+	// The rocket's state on the launch path right now. False outside the launch.
+	bool GetAscentNow(Orbital::AscentSample& Out) const;
+
+	// Map view. 0: off, 1: mission map (follows the flight), 2: solar system. M key or the Map button.
+	UFUNCTION(BlueprintCallable, Category = "Orbital")
+	void CycleMap();
+	int32 GetMapMode() const { return MapMode; }
+	FOrbitalMapState GetMapState() const;
+
 	// Status message for one event from ORBITAL_TIMELINE_COPY_v2.1.md. Falls back to the
 	// timeline's own message when the event ID is unknown or a value is missing.
 	static FString FormatStatus(const Orbital::TimelineEvent& Event, double LiftoffTwr);
@@ -120,6 +152,9 @@ private:
 	void SetBurning(bool bStage1, bool bStage2, bool bProbe, bool bQuiet);
 	void PlayOneShot(USoundBase* Sound, float Volume);
 	void UpdateOrbitCamera(APlayerController& Player);
+	double AscentTimeS() const;
+	FRotator AscentRotation(double PitchDeg, double DownrangeM = 0.0) const;
+	FVector AscentLocation(const Orbital::AscentSample& Sample) const;
 
 	void ApplyEvent(int32 Index, APlayerController& Player);
 	void SetAttached(FGroup& Group, bool bAttached);
@@ -168,6 +203,15 @@ private:
 
 	FString StatusMessage, StatusDetail;
 
+	// Gravity-turn launch path (OrbitalAscent.h) and how it is laid into the scene.
+	Orbital::AscentProfile Ascent;
+	FVector AscentDirection = FVector::RightVector; // horizontal direction the rocket leans and flies towards
+	double AscentScaleCmPerM = 0;                   // scene cm per real metre along the path
+	FOrbitalMapState MapBase;
+	int32 MapMode = 0;
+	bool bChase = false;                            // launch: the player camera follows the rocket
+	FVector ChaseFocusLocalCm = FVector::ZeroVector; // point the following camera looks at, eased between events
+
 	UStaticMeshComponent* Stage1Flame = nullptr;
 	UStaticMeshComponent* Stage2Flame = nullptr;
 	UStaticMeshComponent* ProbeFlame = nullptr;
@@ -191,6 +235,8 @@ public:
 
 private:
 	TArray<FString> Wrap(const FString& Text, float MaxWidth, UFont* Font, float Scale) const;
+	void DrawMap(const AOrbitalFlightPlayback& Flight, float Width, float Height, float Unit, UFont* Font);
+	void DrawAttitude(const Orbital::AscentSample& Now, const FVector2D& Centre, float Radius, float Unit, UFont* Font);
 	void DrawReport(const FOrbitalFlightReport& Report, float Width, float Height, float Unit, UFont* Font);
 };
 

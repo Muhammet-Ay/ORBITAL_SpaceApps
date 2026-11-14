@@ -2,6 +2,7 @@
 
 #include "../Assembly/OrbitalAssemblyScreenObject.h"
 #include "../OrbitalCatalogLoader.h"
+#include "OrbitalSolarSystem.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -571,6 +572,36 @@ bool AOrbitalFlightPlayback::StartFlight(const Orbital::Catalog& Catalog, const 
 	}
 	LiftoffTwr = Result.lv.firstTwr;
 
+	// Launch path for the playback and the map. Display only: the outcome stays with Evaluate().
+	Ascent = Show.size() > 1 ? Orbital::SimulateAscent(Catalog, Mission, Launcher, Result.sc.wetKg, 0.5) : Orbital::AscentProfile();
+	AscentScaleCmPerM = 0;
+	MapMode = 0;
+	MapBase = FOrbitalMapState();
+	MapBase.EarthRadiusM = Mission.earthRadiusM;
+	MapBase.ParkingRadiusM = Mission.earthRadiusM + Mission.leoAltM;
+	MapBase.MoonAxisM = Mission.moonSemiMajorAxisM;
+	MapBase.MoonRadiusM = Mission.moonRadiusM;
+	const auto LunarOrbit = Mission.orbits.find(Spacecraft.orbit);
+	if (LunarOrbit != Mission.orbits.end())
+	{
+		MapBase.LunarPeriapsisM = Mission.moonRadiusM + LunarOrbit->second.periM;
+		MapBase.LunarApoapsisM = Mission.moonRadiusM + LunarOrbit->second.apoM;
+	}
+	for (const Orbital::TimelineEvent& Event : Show)
+	{
+		if (Event.event == "TLI_COMPLETE")
+		{
+			MapBase.TliS = Event.missionTimeS;
+		}
+		else if (Event.event == "INSERTION_BURN_START" && MapBase.ArrivalS < 0)
+		{
+			MapBase.ArrivalS = Event.missionTimeS;
+		}
+	}
+	UE_LOG(LogOrbitalFlight, Display, TEXT("Ascent: pitch-over %.2f deg, max-Q %.1f kPa at %.1f km, stage 1 burnout T+%.0f s, orbit %.0f x %.0f km (%s)"),
+		Ascent.kickDeg, Ascent.maxQPa / 1000.0, Ascent.maxQAltitudeM / 1000.0, Ascent.stage1BurnoutS,
+		Ascent.periapsisAltM / 1000.0, Ascent.apoapsisAltM / 1000.0, Ascent.reachedOrbit ? TEXT("reached") : TEXT("not reached"));
+
 	// The pad is at the world origin (L_Mission). Stand the rocket on whatever is there.
 	PadCm = FVector(0, 0, 600);
 	FHitResult Hit;
@@ -867,7 +898,12 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	const Orbital::TimelineEvent& Event = Show[Index];
 	const std::string& Name = Event.event;
 	CurrentEvent = Index;
-	bOrbiting = false; // every event starts on its own camera
+	// The launch (liftoff to fairing release) is one continuous shot from a camera that follows
+	// the rocket. Every other event starts on its own level camera.
+	const bool bChaseEvent = !Ascent.samples.empty()
+		&& (Name == "LIFTOFF" || Name == "STAGE1_SEPARATION" || Name == "FAIRING_RELEASE");
+	bOrbiting = bOrbiting && bChase && bChaseEvent;
+	bChase = bChaseEvent;
 	StatusMessage = FormatStatus(Event, LiftoffTwr);
 	StatusDetail = Name == "MISSION_REPORT" ? ToFString(Event.message) : FString();
 
@@ -876,10 +912,13 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 		DisplayNow, Camera ? *ToFString(Event.vehicle + "/" + Event.camera) : TEXT("(missing)"), *StatusMessage);
 	if (Camera)
 	{
-		Player.SetViewTargetWithBlend(Camera, 0.0f);
-		if (Player.PlayerCameraManager && Camera != ActiveCamera)
+		if (!bOrbiting) // the following camera keeps the view through the launch
 		{
-			Player.PlayerCameraManager->StartCameraFade(1.0f, 0.0f, 0.5f, FLinearColor::Black, false, false);
+			Player.SetViewTargetWithBlend(Camera, 0.0f);
+			if (Player.PlayerCameraManager && Camera != ActiveCamera)
+			{
+				Player.PlayerCameraManager->StartCameraFade(1.0f, 0.0f, 0.5f, FLinearColor::Black, false, false);
+			}
 		}
 		ActiveCamera = Camera;
 		// The project runs with fixed exposure; without this the sunlit vehicle and Moon clip to white.
@@ -917,6 +956,17 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 				AscentEndCm = Anchor - FVector(0, 0, Stage1TopM * 100.0);
 			}
 		}
+		// The rocket leans and flies across the pad camera's view, so the turn is seen side-on.
+		AscentDirection = FVector::RightVector;
+		if (Camera)
+		{
+			const FVector Sideways = Camera->GetActorRightVector().GetSafeNormal2D();
+			AscentDirection = Sideways.IsNearlyZero() ? FVector::RightVector : Sideways;
+		}
+		// The path uses the scene's own scale for Earth (1:100, so 1 m of flight is 1 cm), for
+		// height and distance alike, and bends with the ground. Stage 1 burnout at 60 to 90 km is
+		// then just under the top of the scene's 1 km atmosphere.
+		AscentScaleCmPerM = Ascent.samples.empty() ? 0.0 : 1.0;
 		Mode = EMode::Ascent;
 		FocusLocalCm = FVector(0, 0, TotalHeightM * 50.0);
 		FocusSizeM = TotalHeightM;
@@ -925,13 +975,25 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	}
 	else if (bSeparation)
 	{
-		if (Camera && AscentAnchor(*Camera, Anchor))
+		// The rocket keeps the pitch it had at stage 1 burnout: by now it is flying mostly sideways.
+		if (Camera)
 		{
-			SetActorLocationAndRotation(Anchor - FVector(0, 0, Stage1TopM * 100.0), FRotator::ZeroRotator);
+			const FVector Sideways = Camera->GetActorRightVector().GetSafeNormal2D();
+			AscentDirection = Sideways.IsNearlyZero() ? AscentDirection : Sideways;
 		}
-		MakeDebris(Stage1, FVector(0, 0, -300.0), FRotator(1.5, 0, 0.8));
+		const Orbital::AscentSample Burnout = Orbital::SampleAscent(Ascent, Ascent.stage1BurnoutS);
+		const FRotator Attitude = AscentRotation(Burnout.pitchDeg, Burnout.downrangeM);
+		if (bChase)
+		{
+			SetActorLocationAndRotation(AscentLocation(Burnout), Attitude); // where the climb ended: no cut
+		}
+		else if (Camera && AscentAnchor(*Camera, Anchor))
+		{
+			SetActorLocationAndRotation(Anchor - Attitude.RotateVector(FVector(0, 0, Stage1TopM * 100.0)), Attitude);
+		}
+		MakeDebris(Stage1, Attitude.RotateVector(FVector(0, 0, -300.0)), FRotator(1.5, 0, 0.8));
 		Mode = EMode::Tracked;
-		DriftCm = FVector(0, 0, 300.0);
+		DriftCm = Attitude.RotateVector(FVector(0, 0, 300.0));
 		FocusLocalCm = FVector(0, 0, Stage1TopM * 100.0);
 		FocusSizeM = TotalHeightM + 10.0;
 		FocusFraction = 0.6;
@@ -942,14 +1004,29 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	}
 	else if (bFairingEvent)
 	{
-		if (Camera && AscentAnchor(*Camera, Anchor))
+		if (Camera)
 		{
-			SetActorLocationAndRotation(Anchor - ProbeFocus, FRotator::ZeroRotator);
+			const FVector Flat = Camera->GetActorRightVector().GetSafeNormal2D();
+			AscentDirection = Flat.IsNearlyZero() ? AscentDirection : Flat;
 		}
-		const FVector Sideways = Camera ? Camera->GetActorRightVector() : FVector::RightVector;
-		MakeDebris(Fairing, Sideways * 180.0 + FVector(0, 0, -60.0), FRotator(0, 0, 6.0));
+		const Orbital::AscentSample Burnout = Orbital::SampleAscent(Ascent, Ascent.stage1BurnoutS);
+		const FRotator Attitude = AscentRotation(Burnout.pitchDeg, Burnout.downrangeM);
+		if (bChase)
+		{
+			if (Mode != EMode::Tracked) // normally the rocket is already here, drifting on from the separation
+			{
+				SetActorLocationAndRotation(AscentLocation(Burnout), Attitude);
+			}
+		}
+		else if (Camera && AscentAnchor(*Camera, Anchor))
+		{
+			SetActorLocationAndRotation(Anchor - Attitude.RotateVector(ProbeFocus), Attitude);
+		}
+		// The fairing halves fall away across the rocket's axis, towards the camera's up or down.
+		const FVector Sideways = Camera ? Camera->GetActorUpVector() : FVector::UpVector;
+		MakeDebris(Fairing, Sideways * 180.0 + Attitude.RotateVector(FVector(0, 0, -60.0)), FRotator(0, 0, 6.0));
 		Mode = EMode::Tracked;
-		DriftCm = FVector(0, 0, 100.0);
+		DriftCm = Attitude.RotateVector(FVector(0, 0, 100.0));
 		FocusLocalCm = ProbeFocus;
 		FocusSizeM = FairingHeightM + 8.0;
 		FocusFraction = 0.6;
@@ -1017,6 +1094,10 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 	{
 		Skip();
 	}
+	if (Player->WasInputKeyJustPressed(EKeys::M))
+	{
+		CycleMap();
+	}
 
 	const int32 Count = static_cast<int32>(Show.size());
 	if (!bFinished)
@@ -1048,7 +1129,16 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 		const double Start = Show[CurrentEvent].displayTimeS;
 		const double End = CurrentEvent + 1 < Count ? Show[CurrentEvent + 1].displayTimeS : Start + 20.0;
 		const double U = FMath::Clamp((DisplayNow - Start) / FMath::Max(End - Start, 0.1), 0.0, 1.0);
-		SetActorLocation(FMath::Lerp(PadCm, AscentEndCm, U * U * U));
+		if (AscentScaleCmPerM > 0)
+		{
+			// Gravity turn: position and pitch from the simulated path, stage 1 burn compressed into this event.
+			const Orbital::AscentSample Now = Orbital::SampleAscent(Ascent, U * Ascent.stage1BurnoutS);
+			SetActorLocationAndRotation(AscentLocation(Now), AscentRotation(Now.pitchDeg, Now.downrangeM));
+		}
+		else
+		{
+			SetActorLocation(FMath::Lerp(PadCm, AscentEndCm, U * U * U)); // no path (invalid launcher): straight up
+		}
 	}
 	else if (Mode == EMode::Tracked || Mode == EMode::Anchored)
 	{
@@ -1062,7 +1152,7 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 			Group->Component->AddLocalRotation(Group->SpinDeg * DeltaSeconds);
 		}
 	}
-	if ((Mode == EMode::Ascent || Mode == EMode::Tracked) && ActiveCamera)
+	if ((Mode == EMode::Ascent || Mode == EMode::Tracked) && ActiveCamera && !bChase)
 	{
 		FrameSubject(*ActiveCamera, GetActorTransform().TransformPosition(FocusLocalCm), FocusSizeM, FocusFraction);
 	}
@@ -1137,6 +1227,135 @@ FString AOrbitalFlightPlayback::GetPhaseText() const
 		return FString();
 	}
 	return ToFString(Show[CurrentEvent].phase).ToUpper() + TEXT("  |  ") + ToFString(Show[CurrentEvent].event);
+}
+
+// ---------------------------------------------------------------- gravity turn, telemetry, map state
+
+// Mission time shown by the launch playback: the stage 1 burn is compressed into the LIFTOFF event.
+double AOrbitalFlightPlayback::AscentTimeS() const
+{
+	const int32 Count = static_cast<int32>(Show.size());
+	if (CurrentEvent < 0 || CurrentEvent >= Count || Ascent.samples.empty())
+	{
+		return -1.0;
+	}
+	if (Mode == EMode::Tracked && bChase)
+	{
+		return Ascent.stage1BurnoutS; // stage separation and fairing release happen at burnout
+	}
+	if (Mode != EMode::Ascent)
+	{
+		return -1.0;
+	}
+	const double Start = Show[CurrentEvent].displayTimeS;
+	const double End = CurrentEvent + 1 < Count ? Show[CurrentEvent + 1].displayTimeS : Start + 20.0;
+	return FMath::Clamp((DisplayNow - Start) / FMath::Max(End - Start, 0.1), 0.0, 1.0) * Ascent.stage1BurnoutS;
+}
+
+// Rocket attitude for a pitch angle above the local horizon: nose up at 90, level at 0.
+// The horizon itself tips over as the rocket travels round the Earth (DownrangeM along the ground).
+FRotator AOrbitalFlightPlayback::AscentRotation(double PitchDeg, double DownrangeM) const
+{
+	const double Pitch = FMath::DegreesToRadians(FMath::Clamp(PitchDeg, 0.0, 90.0));
+	const double Arc = MapBase.EarthRadiusM > 0 ? DownrangeM / MapBase.EarthRadiusM : 0.0;
+	const FVector LocalUp = FVector::UpVector * FMath::Cos(Arc) + AscentDirection * FMath::Sin(Arc);
+	const FVector LocalAhead = AscentDirection * FMath::Cos(Arc) - FVector::UpVector * FMath::Sin(Arc);
+	const FVector Nose = LocalUp * FMath::Sin(Pitch) + LocalAhead * FMath::Cos(Pitch);
+	return FRotationMatrix::MakeFromZX(Nose, FVector::CrossProduct(AscentDirection, FVector::UpVector)).Rotator();
+}
+
+// Where the rocket is in the scene for a point on the launch path. The path follows the curve of
+// the Earth: the pad is taken to be on top of a sphere of the catalog's Earth radius at scene scale.
+FVector AOrbitalFlightPlayback::AscentLocation(const Orbital::AscentSample& Sample) const
+{
+	const double Scale = AscentScaleCmPerM > 0 ? AscentScaleCmPerM : 1.0;
+	if (MapBase.EarthRadiusM <= 0)
+	{
+		return PadCm + FVector::UpVector * (Sample.altitudeM * Scale) + AscentDirection * (Sample.downrangeM * Scale);
+	}
+	const double Arc = Sample.downrangeM / MapBase.EarthRadiusM;
+	const double GroundCm = MapBase.EarthRadiusM * Scale;
+	const FVector LocalUp = FVector::UpVector * FMath::Cos(Arc) + AscentDirection * FMath::Sin(Arc);
+	return PadCm - FVector::UpVector * GroundCm + LocalUp * (GroundCm + Sample.altitudeM * Scale);
+}
+
+bool AOrbitalFlightPlayback::GetAscentNow(Orbital::AscentSample& Out) const
+{
+	const double Time = AscentTimeS();
+	if (Time < 0)
+	{
+		return false;
+	}
+	Out = Orbital::SampleAscent(Ascent, Time);
+	return true;
+}
+
+FString AOrbitalFlightPlayback::GetTelemetryText() const
+{
+	const double Time = AscentTimeS();
+	if (Time < 0)
+	{
+		return FString();
+	}
+	const Orbital::AscentSample Now = Orbital::SampleAscent(Ascent, Time);
+	return FString::Printf(TEXT("ALT %.1f km   SPEED %.0f m/s   PITCH %.0f deg   Q %.1f kPa   %.1f g"),
+		Now.altitudeM / 1000.0, Now.speedMps, Now.pitchDeg, Now.dynamicPressurePa / 1000.0, Now.accelG);
+}
+
+// One sentence on what the rocket is doing right now and why.
+FString AOrbitalFlightPlayback::GetAscentLesson() const
+{
+	const double Time = AscentTimeS();
+	if (Time < 0 || Mode != EMode::Ascent)
+	{
+		return FString(); // the status line describes staging and fairing release
+	}
+	const Orbital::AscentSample Now = Orbital::SampleAscent(Ascent, Time);
+	if (Now.speedMps < Orbital::AscentModel::KickSpeedMps)
+	{
+		return TEXT("Vertical rise: straight up first, to clear the pad and the thickest air.");
+	}
+	if (FMath::Abs(Time - Ascent.maxQTimeS) < 6.0)
+	{
+		return FString::Printf(TEXT("Max-Q: air pressure on the rocket peaks here, %.0f kPa at %.0f km. Above this the air thins faster than the rocket speeds up."),
+			Ascent.maxQPa / 1000.0, Ascent.maxQAltitudeM / 1000.0);
+	}
+	if (Now.pitchDeg > 90.0 - Ascent.kickDeg - 1.5)
+	{
+		return FString::Printf(TEXT("Pitch-over: the rocket leans %.1f degrees. Orbit needs sideways speed, about 7.8 km/s, far more than it needs height."),
+			Ascent.kickDeg);
+	}
+	return TEXT("Gravity turn: gravity bends the path while the engine pushes along the direction of travel, so little thrust is wasted.");
+}
+
+void AOrbitalFlightPlayback::CycleMap()
+{
+	if (!bPlaying || Report.bVisible)
+	{
+		return;
+	}
+	MapMode = (MapMode + 1) % 3;
+	PlayOneShot(ClickSound, 0.8f);
+}
+
+FOrbitalMapState AOrbitalFlightPlayback::GetMapState() const
+{
+	FOrbitalMapState State = MapBase;
+	const int32 Count = static_cast<int32>(Show.size());
+	if (CurrentEvent < 0 || CurrentEvent >= Count)
+	{
+		return State;
+	}
+	const Orbital::TimelineEvent& Event = Show[CurrentEvent];
+	State.Event = ToFString(Event.event);
+	State.MissionTimeS = Event.missionTimeS;
+	if (CurrentEvent + 1 < Count)
+	{
+		const Orbital::TimelineEvent& Next = Show[CurrentEvent + 1];
+		State.EventProgress = FMath::Clamp((DisplayNow - Event.displayTimeS) / FMath::Max(Next.displayTimeS - Event.displayTimeS, 0.1), 0.0, 1.0);
+		State.MissionTimeS = FMath::Lerp(Event.missionTimeS, Next.missionTimeS, State.EventProgress);
+	}
+	return State;
 }
 
 // ---------------------------------------------------------------- flame, sound, player camera
@@ -1216,7 +1435,7 @@ void AOrbitalFlightPlayback::PlayOneShot(USoundBase* Sound, float Volume)
 // The next timeline event returns to its own camera.
 void AOrbitalFlightPlayback::UpdateOrbitCamera(APlayerController& Player)
 {
-	if (Report.bVisible || Mode == EMode::Idle || !ActiveCamera)
+	if (Report.bVisible || Mode == EMode::Idle || (!ActiveCamera && !bChase))
 	{
 		bOrbiting = false;
 		return;
@@ -1224,12 +1443,19 @@ void AOrbitalFlightPlayback::UpdateOrbitCamera(APlayerController& Player)
 	const bool bDrag = Player.IsInputKeyDown(EKeys::RightMouseButton) || bTestOrbitDrag;
 	const double Wheel = (Player.WasInputKeyJustPressed(EKeys::MouseScrollUp) ? 1.0 : 0.0)
 		- (Player.WasInputKeyJustPressed(EKeys::MouseScrollDown) ? 1.0 : 0.0);
-	const FVector Focus = GetActorTransform().TransformPosition(FocusLocalCm);
+	// The point looked at eases from one event's focus to the next (rocket centre, then the probe).
+	ChaseFocusLocalCm = bOrbiting ? FMath::VInterpTo(ChaseFocusLocalCm, FocusLocalCm, GetWorld() ? GetWorld()->GetDeltaSeconds() : 0.0f, 2.0f)
+		: FocusLocalCm;
+	const FVector Focus = GetActorTransform().TransformPosition(ChaseFocusLocalCm);
 	const double MinDistance = FocusSizeM * 100.0 * 0.9, MaxDistance = FocusSizeM * 100.0 * 40.0;
-	if (!bOrbiting && (bDrag || Wheel != 0.0))
+	if (!bOrbiting && (bDrag || Wheel != 0.0 || bChase))
 	{
-		// Start from where the event camera is, so the view does not jump.
-		const FVector Offset = ActiveCamera->GetActorLocation() - Focus;
+		// Launch: start beside the rocket, a little behind and above, so the turn is seen side-on
+		// with the ground falling away. Otherwise start from where the event camera is, so the view does not jump.
+		const FVector Offset = bChase || !ActiveCamera
+			? (FVector::CrossProduct(FVector::UpVector, AscentDirection) * 0.9 - AscentDirection * 0.35 + FVector::UpVector * 0.2)
+				* (FocusSizeM * 100.0 * 2.6)
+			: ActiveCamera->GetActorLocation() - Focus;
 		const FRotator Direction = Offset.Rotation();
 		OrbitYaw = Direction.Yaw;
 		OrbitPitch = Direction.Pitch;
@@ -1244,7 +1470,7 @@ void AOrbitalFlightPlayback::UpdateOrbitCamera(APlayerController& Player)
 		}
 		UCameraComponent* Lens = OrbitCamera->GetCameraComponent();
 		Lens->SetConstraintAspectRatio(false);
-		Lens->SetFieldOfView(ActiveCamera->GetCameraComponent()->FieldOfView);
+		Lens->SetFieldOfView(bChase || !ActiveCamera ? 60.0f : ActiveCamera->GetCameraComponent()->FieldOfView);
 		Lens->PostProcessBlendWeight = 1.0f;
 		Lens->PostProcessSettings.bOverride_AutoExposureBias = true;
 		Lens->PostProcessSettings.AutoExposureBias = CVarOrbitalFlightExposure.GetValueOnGameThread();
@@ -1295,6 +1521,10 @@ void AOrbitalFlightHUD::DrawHUD()
 	{
 		DrawReport(Flight->GetReport(), Width, Height, Unit, Font);
 		return;
+	}
+	if (Flight->GetMapMode() != 0)
+	{
+		DrawMap(*Flight, Width, Height, Unit, Font); // under the status line, clock and buttons
 	}
 
 	// Status line: word-wrapped and centred at the bottom.
@@ -1351,8 +1581,46 @@ void AOrbitalFlightHUD::DrawHUD()
 		ClockHeight + PhaseHeight + 22.0f * Unit);
 	DrawText(Clock, FLinearColor::White, InfoX, InfoY, Font, TextScale);
 	DrawText(Phase, FLinearColor(0.7f, 0.85f, 1.0f), InfoX, InfoY + ClockHeight + 6.0f * Unit, Font, SmallScale);
-	DrawText(TEXT("Right mouse: orbit   Wheel: zoom"), FLinearColor(0.75f, 0.75f, 0.75f), InfoX,
+	DrawText(TEXT("Right mouse: orbit   Wheel: zoom   M: map"), FLinearColor(0.75f, 0.75f, 0.75f), InfoX,
 		InfoY + ClockHeight + PhaseHeight + 30.0f * Unit, Font, SmallScale * 0.9f);
+
+	// Launch telemetry and what the rocket is doing, while it climbs.
+	const FString Telemetry = Flight->GetTelemetryText();
+	if (!Telemetry.IsEmpty())
+	{
+		float TelemetryWidth = 0, TelemetryHeight = 0;
+		GetTextSize(Telemetry, TelemetryWidth, TelemetryHeight, Font, SmallScale);
+		const TArray<FString> Lesson = Wrap(Flight->GetAscentLesson(), Width * 0.5f, Font, SmallScale);
+		const float BoxTop = InfoY + ClockHeight + PhaseHeight + 64.0f * Unit;
+		DrawRect(Panel, InfoX - 10.0f * Unit, BoxTop - 8.0f * Unit, FMath::Max(TelemetryWidth, Width * 0.5f) + 20.0f * Unit,
+			(Lesson.Num() + 1) * TelemetryHeight * 1.25f + 16.0f * Unit);
+		DrawText(Telemetry, FLinearColor(0.6f, 1.0f, 0.7f), InfoX, BoxTop, Font, SmallScale);
+		for (int32 Index = 0; Index < Lesson.Num(); ++Index)
+		{
+			DrawText(Lesson[Index], FLinearColor::White, InfoX, BoxTop + (Index + 1) * TelemetryHeight * 1.25f, Font, SmallScale);
+		}
+	}
+
+	// Attitude indicator, bottom left above the status line, while the rocket climbs.
+	Orbital::AscentSample AscentNow;
+	if (Flight->GetAscentNow(AscentNow))
+	{
+		const float Radius = 62.0f * Unit;
+		DrawAttitude(AscentNow, FVector2D(Width * 0.06f + Radius + 12.0f * Unit, BarTop - Radius - 44.0f * Unit), Radius, Unit, Font);
+	}
+
+	// Map button, top right.
+	{
+		const int32 MapMode = Flight->GetMapMode();
+		const FString Label = MapMode == 0 ? TEXT("Map (M)") : MapMode == 1 ? TEXT("Solar system (M)") : TEXT("Close map (M)");
+		float LabelWidth = 0, LabelHeight = 0;
+		GetTextSize(Label, LabelWidth, LabelHeight, Font, SmallScale);
+		const FVector2D Size(LabelWidth + 28.0f * Unit, LabelHeight + 14.0f * Unit);
+		const FVector2D Position(Width - Size.X - 24.0f * Unit, 20.0f * Unit);
+		DrawRect(FLinearColor(0.1f, 0.35f, 0.75f, 0.9f), Position.X, Position.Y, Size.X, Size.Y);
+		DrawText(Label, FLinearColor::White, Position.X + 14.0f * Unit, Position.Y + 7.0f * Unit, Font, SmallScale);
+		AddHitBox(Position, Size, TEXT("OrbitalMap"), true);
+	}
 
 	// Skip button, bottom right above the status line.
 	if (!Flight->IsFinished())
@@ -1393,6 +1661,245 @@ TArray<FString> AOrbitalFlightHUD::Wrap(const FString& Text, float MaxWidth, UFo
 		Lines.Add(Line);
 	}
 	return Lines;
+}
+
+// Map view. Mode 1 follows the flight: launch path and parking orbit around Earth, then the
+// transfer to the Moon, then the orbit around the Moon. Mode 2 is the solar system.
+// Orbit shapes come from OrbitalSolarSystem.h and the catalog's mission constants.
+void AOrbitalFlightHUD::DrawMap(const AOrbitalFlightPlayback& Flight, float Width, float Height, float Unit, UFont* Font)
+{
+	const FOrbitalMapState Map = Flight.GetMapState();
+	const float SmallScale = 1.3f * Unit;
+	const FLinearColor OrbitColor(0.35f, 0.75f, 1.0f), PathColor(1.0f, 0.8f, 0.2f), BodyColor(0.8f, 0.8f, 0.85f);
+	const FLinearColor CraftColor(0.4f, 1.0f, 0.5f), Dim(0.55f, 0.6f, 0.7f);
+	const FVector2D Centre(Width * 0.5f, Height * 0.46f);
+	const float Reach = Height * 0.36f; // screen radius available around the centre
+	DrawRect(FLinearColor(0.01f, 0.015f, 0.03f, 0.96f), 0, 0, Width, Height);
+
+	const auto Circle = [&](const FVector2D& At, float Radius, const FLinearColor& Color, float Thickness)
+	{
+		const int32 Segments = 96;
+		for (int32 Index = 0; Index < Segments; ++Index)
+		{
+			const float A = 2.0f * UE_PI * Index / Segments, B = 2.0f * UE_PI * (Index + 1) / Segments;
+			DrawLine(At.X + Radius * FMath::Cos(A), At.Y - Radius * FMath::Sin(A), At.X + Radius * FMath::Cos(B),
+				At.Y - Radius * FMath::Sin(B), Color, Thickness);
+		}
+	};
+	const auto Dot = [&](const FVector2D& At, float Size, const FLinearColor& Color)
+	{
+		DrawRect(Color, At.X - Size * 0.5f, At.Y - Size * 0.5f, Size, Size);
+	};
+	const auto Label = [&](const FString& Text, const FVector2D& At, const FLinearColor& Color)
+	{
+		DrawText(Text, Color, At.X, At.Y, Font, SmallScale);
+	};
+	// Map coordinates have +Y up; the screen has +Y down.
+	const auto ToScreen = [&](const Orbital::MapPoint& Point, double Scale)
+	{
+		return FVector2D(Centre.X + Point.x * Scale, Centre.Y - Point.y * Scale);
+	};
+	FString Title, Note;
+
+	if (Flight.GetMapMode() == 2)
+	{
+		// ---- Solar system. Radii are compressed (square root) so Mercury and Neptune share one screen.
+		const double Outer = Orbital::Planets().back().distanceMkm * 1.02;
+		const double Days = Map.MissionTimeS / 86400.0;
+		const auto Compress = [&](const Orbital::MapPoint& Point)
+		{
+			const double Radius = FMath::Sqrt(Point.x * Point.x + Point.y * Point.y);
+			const double Factor = Radius > 0 ? Orbital::MapRadius(Radius, Outer, 0.5) * Reach / Radius : 0.0;
+			return FVector2D(Centre.X + Point.x * Factor, Centre.Y - Point.y * Factor);
+		};
+		Dot(Centre, 12.0f * Unit, FLinearColor(1.0f, 0.85f, 0.3f));
+		Label(TEXT("Sun"), Centre + FVector2D(10.0f * Unit, -22.0f * Unit), FLinearColor(1.0f, 0.85f, 0.3f));
+		for (const Orbital::SolarBody& Body : Orbital::Planets())
+		{
+			const FLinearColor Color(Body.r / 255.0f, Body.g / 255.0f, Body.b / 255.0f);
+			const double Perihelion = FMath::DegreesToRadians(Body.perihelionDeg);
+			FVector2D Previous = Compress(Orbital::EllipsePoint(Body.distanceMkm, Body.eccentricity, Perihelion, 0.0));
+			for (int32 Index = 1; Index <= 96; ++Index)
+			{
+				const FVector2D Next = Compress(Orbital::EllipsePoint(Body.distanceMkm, Body.eccentricity, Perihelion, 2.0 * UE_DOUBLE_PI * Index / 96));
+				DrawLine(Previous.X, Previous.Y, Next.X, Next.Y, Color * 0.6f, 1.0f);
+				Previous = Next;
+			}
+			const FVector2D At = Compress(Orbital::PlanetPosition(Body, Days));
+			Dot(At, 7.0f * Unit, Color);
+			Label(FString(ANSI_TO_TCHAR(Body.name)), At + FVector2D(8.0f * Unit, -8.0f * Unit), Color);
+		}
+		Title = TEXT("SOLAR SYSTEM");
+		Note = TEXT("Distances are compressed (square-root scale) and planet sizes are not to scale. Orbit sizes, periods and shapes: NASA NSSDC Planetary Fact Sheet. Starting positions are illustrative.");
+	}
+	else if (Map.TliS < 0 || Map.MissionTimeS < Map.TliS)
+	{
+		// ---- Around Earth: launch path and parking orbit.
+		const double Scale = Reach * 0.8 / FMath::Max(Map.ParkingRadiusM, 1.0);
+		const float EarthPx = Map.EarthRadiusM * Scale;
+		Circle(Centre, EarthPx, FLinearColor(0.3f, 0.55f, 1.0f), 2.0f);
+		Label(TEXT("Earth"), Centre - FVector2D(22.0f * Unit, 10.0f * Unit), FLinearColor(0.3f, 0.55f, 1.0f));
+		Circle(Centre, Map.ParkingRadiusM * Scale, OrbitColor * 0.7f, 1.0f);
+		// The launch site is drawn at the top; the rocket flies clockwise (to the right) from there.
+		const Orbital::AscentProfile& Ascent = Flight.GetAscent();
+		const auto AscentPoint = [&](const Orbital::AscentSample& Sample)
+		{
+			const double Angle = Sample.downrangeM / FMath::Max(Map.EarthRadiusM, 1.0);
+			const double Radius = (Map.EarthRadiusM + Sample.altitudeM) * Scale;
+			return FVector2D(Centre.X + Radius * FMath::Sin(Angle), Centre.Y - Radius * FMath::Cos(Angle));
+		};
+		FVector2D Craft(Centre.X, Centre.Y - EarthPx);
+		double EndAngle = 0;
+		if (!Ascent.samples.empty())
+		{
+			FVector2D Previous = AscentPoint(Ascent.samples[0]);
+			for (const Orbital::AscentSample& Sample : Ascent.samples)
+			{
+				const FVector2D Next = AscentPoint(Sample);
+				DrawLine(Previous.X, Previous.Y, Next.X, Next.Y, PathColor, 2.0f);
+				Previous = Next;
+			}
+			EndAngle = Ascent.samples.back().downrangeM / FMath::Max(Map.EarthRadiusM, 1.0);
+			Craft = AscentPoint(Orbital::SampleAscent(Ascent, FMath::Min(Map.MissionTimeS, Ascent.cutoffS)));
+		}
+		if (Map.Event == TEXT("PARKING_ORBIT"))
+		{
+			// Coasting round the parking orbit until the burn towards the Moon.
+			const double Angle = EndAngle + 2.0 * UE_DOUBLE_PI * 0.6 * Map.EventProgress;
+			const double Radius = Map.ParkingRadiusM * Scale;
+			Craft = FVector2D(Centre.X + Radius * FMath::Sin(Angle), Centre.Y - Radius * FMath::Cos(Angle));
+		}
+		Dot(Craft, 8.0f * Unit, CraftColor);
+		Label(TEXT("Rocket"), Craft + FVector2D(8.0f * Unit, -8.0f * Unit), CraftColor);
+		Title = TEXT("MAP: LAUNCH TO PARKING ORBIT");
+		Note = FString::Printf(TEXT("Yellow: the launch path, a gravity turn. It leaves the pad vertically and ends flying level at %.1f km/s. Blue: the %.0f km parking orbit, one lap in %.0f minutes."),
+			Ascent.samples.empty() ? 0.0 : Ascent.samples.back().speedMps / 1000.0, (Map.ParkingRadiusM - Map.EarthRadiusM) / 1000.0,
+			Orbital::OrbitPeriodS(3.986004418e14, Map.ParkingRadiusM) / 60.0);
+	}
+	else if (Map.ArrivalS < 0 || Map.MissionTimeS <= Map.ArrivalS)
+	{
+		// ---- Earth to Moon. The Moon is drawn where it will be at arrival: to the right of Earth.
+		const double Scale = Reach / FMath::Max(Map.MoonAxisM, 1.0);
+		const double ArrivalS = Map.ArrivalS > 0 ? Map.ArrivalS : Map.TliS + 5.0 * 86400.0;
+		const double Fraction = FMath::Clamp((Map.MissionTimeS - Map.TliS) / FMath::Max(ArrivalS - Map.TliS, 1.0), 0.0, 1.0);
+		Circle(Centre, Reach, Dim * 0.6f, 1.0f); // the Moon's orbit
+		Dot(Centre, 8.0f * Unit, FLinearColor(0.3f, 0.55f, 1.0f));
+		Label(TEXT("Earth"), Centre + FVector2D(8.0f * Unit, 6.0f * Unit), FLinearColor(0.3f, 0.55f, 1.0f));
+		// The Moon moves about 13 degrees a day; it has to arrive at the meeting point with the spacecraft.
+		const double MoonAngle = -2.0 * UE_DOUBLE_PI * (1.0 - Fraction) * ((ArrivalS - Map.TliS) / 86400.0) / Orbital::MoonPeriodDays;
+		const FVector2D Moon(Centre.X + Reach * FMath::Cos(MoonAngle), Centre.Y - Reach * FMath::Sin(MoonAngle));
+		Dot(Moon, 7.0f * Unit, BodyColor);
+		Label(TEXT("Moon"), Moon + FVector2D(8.0f * Unit, -8.0f * Unit), BodyColor);
+		// Transfer ellipse: closest point at the parking orbit (left of Earth), farthest at the Moon's distance.
+		FVector2D Previous = ToScreen(Orbital::OrbitPoint(Map.ParkingRadiusM, Map.MoonAxisM, UE_DOUBLE_PI, 0.0), Scale);
+		for (int32 Index = 1; Index <= 64; ++Index)
+		{
+			const FVector2D Next = ToScreen(Orbital::OrbitPoint(Map.ParkingRadiusM, Map.MoonAxisM, UE_DOUBLE_PI, UE_DOUBLE_PI * Index / 64), Scale);
+			DrawLine(Previous.X, Previous.Y, Next.X, Next.Y, PathColor, 2.0f);
+			Previous = Next;
+		}
+		const FVector2D Craft = ToScreen(Orbital::OrbitPointAtTime(Map.ParkingRadiusM, Map.MoonAxisM, UE_DOUBLE_PI, 0.5 * Fraction), Scale);
+		Dot(Craft, 8.0f * Unit, CraftColor);
+		Label(TEXT("Spacecraft"), Craft + FVector2D(8.0f * Unit, -8.0f * Unit), CraftColor);
+		Title = TEXT("MAP: TRANSFER TO THE MOON");
+		Note = TEXT("Yellow: the transfer orbit, half of a long ellipse. The spacecraft is aimed at where the Moon will be, not where it is now. It moves fast near Earth and slows as it climbs.");
+	}
+	else
+	{
+		// ---- Around the Moon: the science orbit and the Moon's shadow.
+		const double Scale = Reach * 0.6 / FMath::Max(Map.LunarApoapsisM, Map.MoonRadiusM);
+		const float MoonPx = Map.MoonRadiusM * Scale;
+		// Sunlight comes from the left, so the shadow runs to the right of the Moon.
+		DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.75f), Centre.X, Centre.Y - MoonPx, Width - Centre.X, MoonPx * 2.0f);
+		DrawLine(Centre.X, Centre.Y - MoonPx, Width, Centre.Y - MoonPx, Dim, 1.0f);
+		DrawLine(Centre.X, Centre.Y + MoonPx, Width, Centre.Y + MoonPx, Dim, 1.0f);
+		Label(TEXT("Moon's shadow: no sunlight on the solar panels, battery only"), FVector2D(Centre.X + Reach * 0.75f, Centre.Y - 10.0f * Unit), Dim);
+		Label(TEXT("Sunlight >>"), FVector2D(Width * 0.06f, Centre.Y - 10.0f * Unit), FLinearColor(1.0f, 0.85f, 0.3f));
+		Circle(Centre, MoonPx, BodyColor, 2.0f);
+		Label(TEXT("Moon"), Centre - FVector2D(20.0f * Unit, 10.0f * Unit), BodyColor);
+		if (Map.LunarPeriapsisM > 0)
+		{
+			FVector2D Previous = ToScreen(Orbital::OrbitPoint(Map.LunarPeriapsisM, Map.LunarApoapsisM, UE_DOUBLE_PI / 2.0, 0.0), Scale);
+			for (int32 Index = 1; Index <= 96; ++Index)
+			{
+				const FVector2D Next = ToScreen(Orbital::OrbitPoint(Map.LunarPeriapsisM, Map.LunarApoapsisM, UE_DOUBLE_PI / 2.0, 2.0 * UE_DOUBLE_PI * Index / 96), Scale);
+				DrawLine(Previous.X, Previous.Y, Next.X, Next.Y, OrbitColor, 2.0f);
+				Previous = Next;
+			}
+			// A few laps per event so the motion is visible; real laps take about two hours.
+			const FVector2D Craft = ToScreen(Orbital::OrbitPointAtTime(Map.LunarPeriapsisM, Map.LunarApoapsisM, UE_DOUBLE_PI / 2.0,
+				FMath::Frac(Map.EventProgress * 3.0)), Scale);
+			Dot(Craft, 8.0f * Unit, CraftColor);
+			Label(TEXT("Spacecraft"), Craft + FVector2D(8.0f * Unit, -8.0f * Unit), CraftColor);
+		}
+		Title = TEXT("MAP: LUNAR ORBIT");
+		Note = FString::Printf(TEXT("Blue: the science orbit, %.0f x %.0f km above the surface. Every lap passes through the Moon's shadow; the battery has to carry the spacecraft through it."),
+			(Map.LunarPeriapsisM - Map.MoonRadiusM) / 1000.0, (Map.LunarApoapsisM - Map.MoonRadiusM) / 1000.0);
+	}
+
+	float TitleWidth = 0, TitleHeight = 0;
+	GetTextSize(Title, TitleWidth, TitleHeight, Font, 1.9f * Unit);
+	DrawText(Title, FLinearColor::White, (Width - TitleWidth) * 0.5f, 22.0f * Unit, Font, 1.9f * Unit);
+	const TArray<FString> NoteLines = Wrap(Note, Width * 0.8f, Font, SmallScale);
+	for (int32 Index = 0; Index < NoteLines.Num(); ++Index)
+	{
+		float LineWidth = 0, LineHeight = 0;
+		GetTextSize(NoteLines[Index], LineWidth, LineHeight, Font, SmallScale);
+		DrawText(NoteLines[Index], Dim, (Width - LineWidth) * 0.5f, Height * 0.84f - (NoteLines.Num() - Index) * LineHeight * 1.2f, Font, SmallScale);
+	}
+}
+
+// Attitude indicator: a round window on the horizon. Blue is sky, brown is ground. The gold
+// bar in the middle is the rocket's nose; the yellow ring is the direction it is actually moving
+// (prograde). In a gravity turn the two sit on top of each other.
+void AOrbitalFlightHUD::DrawAttitude(const Orbital::AscentSample& Now, const FVector2D& Centre, float Radius, float Unit, UFont* Font)
+{
+	const float SmallScale = 1.2f * Unit;
+	const FLinearColor Sky(0.15f, 0.4f, 0.85f, 0.95f), Ground(0.42f, 0.27f, 0.12f, 0.95f), Gold(1.0f, 0.8f, 0.2f);
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f), Centre.X - Radius - 12.0f * Unit, Centre.Y - Radius - 34.0f * Unit,
+		Radius * 2.0f + 24.0f * Unit, Radius * 2.0f + 72.0f * Unit);
+	// Nose 90 degrees up: all sky. Nose level: the horizon crosses the middle.
+	const float HorizonY = Radius * static_cast<float>(FMath::Clamp(Now.pitchDeg, -90.0, 90.0) / 90.0);
+	const int32 Rows = 30;
+	for (int32 Row = -Rows; Row <= Rows; ++Row)
+	{
+		const float Y = Radius * Row / Rows;
+		const float Half = FMath::Sqrt(FMath::Max(Radius * Radius - Y * Y, 0.0f));
+		DrawLine(Centre.X - Half, Centre.Y + Y, Centre.X + Half, Centre.Y + Y, Y < HorizonY ? Sky : Ground, Radius / Rows + 1.0f);
+	}
+	if (FMath::Abs(HorizonY) < Radius)
+	{
+		const float Half = FMath::Sqrt(Radius * Radius - HorizonY * HorizonY);
+		DrawLine(Centre.X - Half, Centre.Y + HorizonY, Centre.X + Half, Centre.Y + HorizonY, FLinearColor::White, 2.0f);
+	}
+	const int32 Segments = 48;
+	for (int32 Index = 0; Index < Segments; ++Index)
+	{
+		const float A = 2.0f * UE_PI * Index / Segments, B = 2.0f * UE_PI * (Index + 1) / Segments;
+		DrawLine(Centre.X + Radius * FMath::Cos(A), Centre.Y + Radius * FMath::Sin(A), Centre.X + Radius * FMath::Cos(B),
+			Centre.Y + Radius * FMath::Sin(B), FLinearColor::White, 2.0f);
+	}
+	// Prograde: where the velocity points, measured from the nose.
+	const float ProgradeY = Radius * static_cast<float>(FMath::Clamp(Now.pitchDeg - Now.flightPathDeg, -90.0, 90.0) / 90.0);
+	const float Ring = 7.0f * Unit;
+	for (int32 Index = 0; Index < 12; ++Index)
+	{
+		const float A = 2.0f * UE_PI * Index / 12, B = 2.0f * UE_PI * (Index + 1) / 12;
+		DrawLine(Centre.X + Ring * FMath::Cos(A), Centre.Y + ProgradeY + Ring * FMath::Sin(A), Centre.X + Ring * FMath::Cos(B),
+			Centre.Y + ProgradeY + Ring * FMath::Sin(B), FLinearColor(1.0f, 1.0f, 0.2f), 2.0f);
+	}
+	// Nose marker.
+	DrawLine(Centre.X - 22.0f * Unit, Centre.Y, Centre.X - 8.0f * Unit, Centre.Y, Gold, 3.0f);
+	DrawLine(Centre.X + 8.0f * Unit, Centre.Y, Centre.X + 22.0f * Unit, Centre.Y, Gold, 3.0f);
+	DrawRect(Gold, Centre.X - 2.0f * Unit, Centre.Y - 2.0f * Unit, 4.0f * Unit, 4.0f * Unit);
+
+	const FString Speed = FString::Printf(TEXT("%.0f m/s"), Now.speedMps);
+	const FString Pitch = FString::Printf(TEXT("PITCH %.0f   %.1f g"), Now.pitchDeg, Now.accelG);
+	float TextWidth = 0, TextHeight = 0;
+	GetTextSize(Speed, TextWidth, TextHeight, Font, SmallScale);
+	DrawText(Speed, FLinearColor(0.6f, 1.0f, 0.7f), Centre.X - TextWidth * 0.5f, Centre.Y - Radius - 28.0f * Unit, Font, SmallScale);
+	GetTextSize(Pitch, TextWidth, TextHeight, Font, SmallScale);
+	DrawText(Pitch, FLinearColor::White, Centre.X - TextWidth * 0.5f, Centre.Y + Radius + 8.0f * Unit, Font, SmallScale);
 }
 
 // Report screen: result, phase reached, score, cause and fix for each result code, Redesign button.
@@ -1478,6 +1985,10 @@ void AOrbitalFlightHUD::NotifyHitBoxClick(FName BoxName)
 	if (BoxName == TEXT("OrbitalRedesign") && Playback.IsValid())
 	{
 		Playback->RequestRedesign();
+	}
+	if (BoxName == TEXT("OrbitalMap") && Playback.IsValid())
+	{
+		Playback->CycleMap();
 	}
 }
 
