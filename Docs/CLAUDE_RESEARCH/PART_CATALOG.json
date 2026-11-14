@@ -1,0 +1,960 @@
+{
+ "schema_version": "2.1",
+ "provenance": "All part values, costs, tiers, limits and science factors are illustrative gameplay assumptions. Only mission.constants are sourced (NSSDC fact sheets). Not specifications of real hardware.",
+ "units": {
+  "mass": "kg",
+  "cost": "M credits (fictional)",
+  "power": "W",
+  "energy": "Wh",
+  "thrust": "N",
+  "isp": "s",
+  "data": "GB/day",
+  "rate": "Mbps",
+  "distance": "m",
+  "delta_v": "m/s"
+ },
+ "mission": {
+  "id": "lunar_polar_survey",
+  "mode": "uncrewed",
+  "constants": {
+   "g0": 9.80665,
+   "mu_earth": 398600000000000.0,
+   "mu_moon": 4900000000000.0,
+   "r_earth_m": 6378137.0,
+   "r_moon_m": 1737400.0,
+   "a_moon_m": 384400000.0,
+   "solar_w_m2": 1361.0
+  },
+  "assumptions": {
+   "leo_alt_m": 200000.0,
+   "dv_ascent_mps": 9400.0,
+   "dv_mcc_mps": 30.0,
+   "dv_margin": 0.1,
+   "cell_eff": 0.28,
+   "point_loss": 0.9,
+   "dod": 0.6,
+   "chg_eff": 0.9,
+   "min_twr_liftoff": 1.2,
+   "min_twr_stage2": 0.25,
+   "orbit_visible": 0.5,
+   "ops_base_cost_per_year": 8.0,
+   "primary_pass": 0.6,
+   "planned_years_options": [
+    1,
+    2
+   ]
+  },
+  "budget_mcr": {
+   "easy": 420.0,
+   "normal": 360.0,
+   "hard": 310.0
+  },
+  "ground": {
+   "single_station": {
+    "hours": 8.0,
+    "cost_per_year": 4.0,
+    "max_gap_h": 16.0
+   },
+   "network_3": {
+    "hours": 24.0,
+    "cost_per_year": 14.0,
+    "max_gap_h": 1.0
+   }
+  },
+  "objectives": {
+   "O1_ICE": {
+    "name": "Map hydrogen (water ice) at the poles",
+    "weight": 35
+   },
+   "O2_TOPO": {
+    "name": "Map terrain inside shadowed craters",
+    "weight": 20
+   },
+   "O3_THERMAL": {
+    "name": "Map surface temperature and cold traps",
+    "weight": 15
+   },
+   "O4_IMAGING": {
+    "name": "Image candidate landing sites",
+    "weight": 20
+   },
+   "O5_RADAR": {
+    "name": "Probe shadowed craters by radar",
+    "weight": 10
+   }
+  },
+  "orbits": {
+   "LPO_50": {
+    "name": "50 km circular polar",
+    "hp_m": 50000.0,
+    "ha_m": 50000.0,
+    "sk_mps_per_year": 150.0,
+    "factor": {
+     "O1_ICE": 1.0,
+     "O2_TOPO": 1.0,
+     "O3_THERMAL": 1.0,
+     "O4_IMAGING": 1.0,
+     "O5_RADAR": 1.0
+    }
+   },
+   "LPO_100": {
+    "name": "100 km circular polar",
+    "hp_m": 100000.0,
+    "ha_m": 100000.0,
+    "sk_mps_per_year": 60.0,
+    "factor": {
+     "O1_ICE": 0.8,
+     "O2_TOPO": 0.85,
+     "O3_THERMAL": 0.9,
+     "O4_IMAGING": 0.6,
+     "O5_RADAR": 0.8
+    }
+   },
+   "ELL_30x216": {
+    "name": "30 x 216 km quasi-frozen polar",
+    "hp_m": 30000.0,
+    "ha_m": 216000.0,
+    "sk_mps_per_year": 10.0,
+    "factor": {
+     "O1_ICE": 0.7,
+     "O2_TOPO": 0.7,
+     "O3_THERMAL": 0.7,
+     "O4_IMAGING": 0.7,
+     "O5_RADAR": 0.6
+    }
+   }
+  },
+  "default_orbit": "LPO_100",
+  "required_probe_slots": [
+   "probe-core",
+   "probe-tank",
+   "probe-engine",
+   "adcs",
+   "solar",
+   "battery",
+   "antenna",
+   "avionics"
+  ],
+  "required_launch_slots": [
+   "stage1-tank",
+   "stage1-engine",
+   "separator",
+   "stage2-tank",
+   "stage2-engine",
+   "fairing"
+  ],
+  "socket_limits": {
+   "probe-tank": 2,
+   "solar": 4,
+   "battery": 2,
+   "adcs": 2,
+   "antenna": 1,
+   "avionics": 1,
+   "probe-engine": 1
+  },
+  "socket_tree": {
+   "launch-mount": [
+    "stage1-tank"
+   ],
+   "stage1-tank": [
+    "stage1-engine",
+    "separator"
+   ],
+   "separator": [
+    "stage2-tank"
+   ],
+   "stage2-tank": [
+    "stage2-engine",
+    "fairing"
+   ],
+   "fairing": [
+    "probe-core",
+    "escape"
+   ],
+   "probe-core": [
+    "probe-tank",
+    "probe-engine",
+    "adcs",
+    "solar",
+    "battery",
+    "antenna",
+    "avionics",
+    "instrument",
+    "life-support"
+   ]
+  },
+  "real_mission_link": "https://science.nasa.gov/mission/lro/spacecraft-and-instruments/"
+ },
+ "parts": [
+  {
+   "id": "bus_small",
+   "name": "Probe Bus S",
+   "category": "bus",
+   "description": "Compact spacecraft structure with basic avionics and heaters.",
+   "mass_kg": 110,
+   "cost_mcr": 20,
+   "base_power_w": 45,
+   "max_instruments": 2,
+   "max_wet_mass_kg": 700,
+   "attach_sockets": [
+    "top",
+    "bottom",
+    "side_a",
+    "side_b",
+    "side_c",
+    "side_d",
+    "deck_a",
+    "deck_b"
+   ],
+   "value_basis": "gameplay_assumption",
+   "slot": "probe-core",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed"
+   ]
+  },
+  {
+   "id": "bus_medium",
+   "name": "Probe Bus M",
+   "category": "bus",
+   "description": "Larger structure for multi-instrument orbiters.",
+   "mass_kg": 290,
+   "cost_mcr": 45,
+   "base_power_w": 80,
+   "max_instruments": 5,
+   "max_wet_mass_kg": 2500,
+   "attach_sockets": [
+    "top",
+    "bottom",
+    "side_a",
+    "side_b",
+    "side_c",
+    "side_d",
+    "deck_a",
+    "deck_b",
+    "deck_c",
+    "deck_d",
+    "deck_e"
+   ],
+   "value_basis": "gameplay_assumption",
+   "slot": "probe-core",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed"
+   ]
+  },
+  {
+   "id": "command_module",
+   "name": "Command Module",
+   "category": "bus",
+   "description": "Crewed command module (data defined for future crewed scenarios).",
+   "mass_kg": 5200,
+   "cost_mcr": 900,
+   "base_power_w": 1500,
+   "max_instruments": 3,
+   "max_wet_mass_kg": 30000,
+   "crew_capacity": 3,
+   "value_basis": "gameplay_assumption",
+   "slot": "probe-core",
+   "visual": "box",
+   "mission_modes": [
+    "crewed"
+   ]
+  },
+  {
+   "id": "crew_capsule",
+   "name": "Crew Capsule",
+   "category": "bus",
+   "description": "Small crew capsule (future crewed scenarios).",
+   "mass_kg": 3800,
+   "cost_mcr": 650,
+   "base_power_w": 900,
+   "max_instruments": 1,
+   "max_wet_mass_kg": 12000,
+   "crew_capacity": 2,
+   "value_basis": "gameplay_assumption",
+   "slot": "probe-core",
+   "visual": "box",
+   "mission_modes": [
+    "crewed"
+   ]
+  },
+  {
+   "id": "life_support",
+   "name": "Life Support Module",
+   "category": "life_support",
+   "description": "Air, water and thermal control for the crew. Required for crewed vehicles.",
+   "mass_kg": 450,
+   "cost_mcr": 120,
+   "power_w": 600,
+   "consumables_kg_per_crew_day": 5.0,
+   "value_basis": "gameplay_assumption",
+   "slot": "life-support",
+   "visual": "cylinder",
+   "mission_modes": [
+    "crewed"
+   ]
+  },
+  {
+   "id": "sc_tank_s",
+   "name": "Propellant Tank S",
+   "category": "sc_tank",
+   "description": "Small spacecraft propellant tank.",
+   "mass_kg": 15,
+   "cost_mcr": 2,
+   "prop_capacity_kg": 150,
+   "value_basis": "gameplay_assumption",
+   "slot": "probe-tank",
+   "visual": "sphere",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "sc_tank_m",
+   "name": "Propellant Tank M",
+   "category": "sc_tank",
+   "description": "Medium spacecraft propellant tank.",
+   "mass_kg": 35,
+   "cost_mcr": 4,
+   "prop_capacity_kg": 400,
+   "value_basis": "gameplay_assumption",
+   "slot": "probe-tank",
+   "visual": "sphere",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "sc_tank_l",
+   "name": "Propellant Tank L",
+   "category": "sc_tank",
+   "description": "Large spacecraft propellant tank.",
+   "mass_kg": 70,
+   "cost_mcr": 7,
+   "prop_capacity_kg": 900,
+   "value_basis": "gameplay_assumption",
+   "slot": "probe-tank",
+   "visual": "sphere",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "sc_engine_mono",
+   "name": "Monopropellant Engine",
+   "category": "sc_engine",
+   "description": "Simple, reliable hydrazine-class engine. Lower efficiency.",
+   "mass_kg": 6,
+   "cost_mcr": 5,
+   "isp_s": 220,
+   "thrust_n": 440,
+   "power_w": 10,
+   "value_basis": "gameplay_assumption (Isp in the class of LRO's 212.2 s system, see refs)",
+   "slot": "probe-engine",
+   "visual": "cone",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "sc_engine_biprop",
+   "name": "Bipropellant Engine",
+   "category": "sc_engine",
+   "description": "More efficient two-propellant engine. Costs more.",
+   "mass_kg": 9,
+   "cost_mcr": 14,
+   "isp_s": 318,
+   "thrust_n": 450,
+   "power_w": 15,
+   "value_basis": "gameplay_assumption",
+   "slot": "probe-engine",
+   "visual": "cone",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "rcs",
+   "name": "RCS Thrusters",
+   "category": "adcs",
+   "description": "Small thrusters for coarse attitude control and momentum dumping. Required on every spacecraft.",
+   "mass_kg": 12,
+   "cost_mcr": 3,
+   "power_w": 5,
+   "pointing": "coarse",
+   "value_basis": "gameplay_assumption",
+   "slot": "adcs",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "reaction_wheels",
+   "name": "Reaction Wheel Set",
+   "category": "adcs",
+   "description": "Precise 3-axis pointing. Required by imaging instruments and the high-gain antenna.",
+   "mass_kg": 22,
+   "cost_mcr": 9,
+   "power_w": 40,
+   "pointing": "fine",
+   "value_basis": "gameplay_assumption",
+   "slot": "adcs",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "solar_s",
+   "name": "Solar Array S",
+   "category": "solar",
+   "description": "1.5 m^2 deployable array.",
+   "mass_kg": 8,
+   "cost_mcr": 3,
+   "area_m2": 1.5,
+   "value_basis": "gameplay_assumption",
+   "slot": "solar",
+   "visual": "panel",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "solar_l",
+   "name": "Solar Array L",
+   "category": "solar",
+   "description": "4.0 m^2 deployable array.",
+   "mass_kg": 20,
+   "cost_mcr": 7,
+   "area_m2": 4.0,
+   "value_basis": "gameplay_assumption",
+   "slot": "solar",
+   "visual": "panel",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "battery_s",
+   "name": "Battery S",
+   "category": "battery",
+   "description": "400 Wh lithium-ion pack.",
+   "mass_kg": 4,
+   "cost_mcr": 1,
+   "capacity_wh": 400,
+   "value_basis": "gameplay_assumption",
+   "slot": "battery",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "battery_l",
+   "name": "Battery L",
+   "category": "battery",
+   "description": "1600 Wh lithium-ion pack.",
+   "mass_kg": 14,
+   "cost_mcr": 3,
+   "capacity_wh": 1600,
+   "value_basis": "gameplay_assumption",
+   "slot": "battery",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "antenna_lga",
+   "name": "Low-Gain Antenna",
+   "category": "antenna",
+   "description": "Works in any attitude, very low data rate.",
+   "mass_kg": 1.5,
+   "cost_mcr": 1,
+   "power_w": 6,
+   "data_rate_mbps": 0.016,
+   "needs_fine_pointing": false,
+   "value_basis": "gameplay_assumption",
+   "slot": "antenna",
+   "visual": "dish",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "antenna_mga",
+   "name": "Medium-Gain Antenna",
+   "category": "antenna",
+   "description": "Moderate data rate, coarse pointing is enough.",
+   "mass_kg": 6,
+   "cost_mcr": 4,
+   "power_w": 22,
+   "data_rate_mbps": 0.5,
+   "needs_fine_pointing": false,
+   "value_basis": "gameplay_assumption",
+   "slot": "antenna",
+   "visual": "dish",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "antenna_hga",
+   "name": "High-Gain Antenna",
+   "category": "antenna",
+   "description": "High data rate dish. Needs fine pointing.",
+   "mass_kg": 21,
+   "cost_mcr": 15,
+   "power_w": 60,
+   "data_rate_mbps": 20,
+   "needs_fine_pointing": true,
+   "value_basis": "gameplay_assumption",
+   "slot": "antenna",
+   "visual": "dish",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "obc_basic",
+   "name": "Onboard Computer (Basic)",
+   "category": "computer",
+   "description": "Runs up to 2 instruments. 16 GB storage.",
+   "mass_kg": 3,
+   "cost_mcr": 3,
+   "power_w": 10,
+   "storage_gb": 16,
+   "max_instruments": 2,
+   "value_basis": "gameplay_assumption",
+   "slot": "avionics",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "obc_advanced",
+   "name": "Onboard Computer (Advanced)",
+   "category": "computer",
+   "description": "Runs up to 5 instruments. 256 GB storage.",
+   "mass_kg": 6,
+   "cost_mcr": 10,
+   "power_w": 25,
+   "storage_gb": 256,
+   "max_instruments": 5,
+   "value_basis": "gameplay_assumption",
+   "slot": "avionics",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "inst_neutron",
+   "name": "Neutron Spectrometer",
+   "category": "instrument",
+   "description": "Detects hydrogen in the soil, a sign of water ice.",
+   "mass_kg": 26,
+   "cost_mcr": 24,
+   "power_w": 12,
+   "data_gb_per_day": 0.02,
+   "needs_fine_pointing": false,
+   "objective": "O1_ICE",
+   "real_analog": "LEND on LRO; Neutron Spectrometer on Lunar Prospector",
+   "value_basis": "gameplay_assumption",
+   "slot": "instrument",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "inst_altimeter",
+   "name": "Laser Altimeter",
+   "category": "instrument",
+   "description": "Measures terrain height, including inside shadowed craters.",
+   "mass_kg": 13,
+   "cost_mcr": 18,
+   "power_w": 35,
+   "data_gb_per_day": 0.6,
+   "needs_fine_pointing": true,
+   "objective": "O2_TOPO",
+   "real_analog": "LOLA on LRO",
+   "value_basis": "gameplay_assumption",
+   "slot": "instrument",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "inst_radiometer",
+   "name": "Thermal Radiometer",
+   "category": "instrument",
+   "description": "Maps surface temperature to find cold traps.",
+   "mass_kg": 12,
+   "cost_mcr": 15,
+   "power_w": 25,
+   "data_gb_per_day": 0.3,
+   "needs_fine_pointing": true,
+   "objective": "O3_THERMAL",
+   "real_analog": "Diviner on LRO",
+   "value_basis": "gameplay_assumption",
+   "slot": "instrument",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "inst_camera",
+   "name": "High-Resolution Camera",
+   "category": "instrument",
+   "description": "Sharp images for landing-site selection. Produces a lot of data.",
+   "mass_kg": 20,
+   "cost_mcr": 32,
+   "power_w": 30,
+   "data_gb_per_day": 20,
+   "needs_fine_pointing": true,
+   "objective": "O4_IMAGING",
+   "real_analog": "LROC on LRO",
+   "value_basis": "gameplay_assumption",
+   "slot": "instrument",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "inst_radar",
+   "name": "Imaging Radar",
+   "category": "instrument",
+   "description": "Looks into permanently shadowed craters. Power hungry.",
+   "mass_kg": 14,
+   "cost_mcr": 28,
+   "power_w": 150,
+   "data_gb_per_day": 10,
+   "needs_fine_pointing": true,
+   "objective": "O5_RADAR",
+   "real_analog": "Mini-RF on LRO",
+   "value_basis": "gameplay_assumption",
+   "slot": "instrument",
+   "visual": "box",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "s1_tank_200",
+   "name": "First Stage Tank 200",
+   "category": "s1_tank",
+   "description": "First stage structure with 200 t of propellant.",
+   "mass_kg": 14000,
+   "cost_mcr": 30,
+   "prop_capacity_kg": 200000,
+   "value_basis": "gameplay_assumption",
+   "slot": "stage1-tank",
+   "visual": "cylinder",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "s1_tank_285",
+   "name": "First Stage Tank 285",
+   "category": "s1_tank",
+   "description": "First stage structure with 285 t of propellant.",
+   "mass_kg": 19000,
+   "cost_mcr": 55,
+   "prop_capacity_kg": 285000,
+   "value_basis": "gameplay_assumption",
+   "slot": "stage1-tank",
+   "visual": "cylinder",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "s1_engine_kl190",
+   "name": "KL-190 Booster Engine",
+   "category": "s1_engine",
+   "description": "Cheap kerosene engine. Use 1 to 3.",
+   "mass_kg": 2200,
+   "cost_mcr": 11,
+   "thrust_sl_n": 1900000.0,
+   "isp_sl_s": 290,
+   "isp_vac_s": 320,
+   "max_count": 3,
+   "value_basis": "gameplay_assumption",
+   "slot": "stage1-engine",
+   "visual": "cone",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "s1_engine_kl380",
+   "name": "KL-380 Booster Engine",
+   "category": "s1_engine",
+   "description": "High-performance kerosene engine. Use 1 or 2.",
+   "mass_kg": 5500,
+   "cost_mcr": 38,
+   "thrust_sl_n": 4200000.0,
+   "isp_sl_s": 311,
+   "isp_vac_s": 338,
+   "max_count": 2,
+   "value_basis": "gameplay_assumption",
+   "slot": "stage1-engine",
+   "visual": "cone",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "s2_tank_7",
+   "name": "Second Stage Tank 7",
+   "category": "s2_tank",
+   "description": "Upper stage structure with 7 t of propellant.",
+   "mass_kg": 1200,
+   "cost_mcr": 8,
+   "prop_capacity_kg": 7000,
+   "value_basis": "gameplay_assumption",
+   "slot": "stage2-tank",
+   "visual": "cylinder",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "s2_tank_21",
+   "name": "Second Stage Tank 21",
+   "category": "s2_tank",
+   "description": "Upper stage structure with 20.8 t of propellant.",
+   "mass_kg": 2200,
+   "cost_mcr": 26,
+   "prop_capacity_kg": 20800,
+   "value_basis": "gameplay_assumption",
+   "slot": "stage2-tank",
+   "visual": "cylinder",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "s2_engine_kl35",
+   "name": "KL-35 Upper Engine",
+   "category": "s2_engine",
+   "description": "Kerosene upper-stage engine. Cheap, average efficiency.",
+   "mass_kg": 480,
+   "cost_mcr": 7,
+   "thrust_vac_n": 350000.0,
+   "isp_vac_s": 345,
+   "value_basis": "gameplay_assumption",
+   "slot": "stage2-engine",
+   "visual": "cone",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "s2_engine_hl10",
+   "name": "HL-10 Upper Engine",
+   "category": "s2_engine",
+   "description": "Hydrogen upper-stage engine. Very efficient, expensive, low thrust.",
+   "mass_kg": 190,
+   "cost_mcr": 20,
+   "thrust_vac_n": 100000.0,
+   "isp_vac_s": 450,
+   "value_basis": "gameplay_assumption",
+   "slot": "stage2-engine",
+   "visual": "cone",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "fairing_s",
+   "name": "Payload Fairing S",
+   "category": "fairing",
+   "description": "Protects the payload during ascent. Fits Probe Bus S up to 600 kg.",
+   "mass_kg": 1400,
+   "cost_mcr": 4,
+   "max_payload_kg": 600,
+   "fits_bus": [
+    "bus_small"
+   ],
+   "value_basis": "gameplay_assumption",
+   "slot": "fairing",
+   "visual": "cone",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "fairing_l",
+   "name": "Payload Fairing L",
+   "category": "fairing",
+   "description": "Large fairing. Fits any bus up to 4000 kg.",
+   "mass_kg": 2300,
+   "cost_mcr": 7,
+   "max_payload_kg": 4000,
+   "fits_bus": [
+    "bus_small",
+    "bus_medium"
+   ],
+   "value_basis": "gameplay_assumption",
+   "slot": "fairing",
+   "visual": "cone",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "sep_system",
+   "name": "Separation System",
+   "category": "separation",
+   "description": "Releases a spent stage or the payload. One per interface (2 on a two-stage rocket).",
+   "mass_kg": 150,
+   "cost_mcr": 1,
+   "value_basis": "gameplay_assumption",
+   "slot": "separator",
+   "visual": "ring",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
+   "id": "les",
+   "name": "Launch Escape System",
+   "category": "les",
+   "description": "Pulls a crew capsule away from a failing rocket. Required for crewed launches only.",
+   "mass_kg": 4000,
+   "cost_mcr": 25,
+   "value_basis": "gameplay_assumption",
+   "slot": "escape",
+   "visual": "cone",
+   "mission_modes": [
+    "crewed"
+   ]
+  }
+ ],
+ "reference_builds": {
+  "LV_LIGHT": {
+   "s1_tank": "s1_tank_200",
+   "s1_engine": "s1_engine_kl190",
+   "s1_count": 2,
+   "s2_tank": "s2_tank_7",
+   "s2_engine": "s2_engine_hl10",
+   "fairing": "fairing_s"
+  },
+  "LV_MID": {
+   "s1_tank": "s1_tank_200",
+   "s1_engine": "s1_engine_kl190",
+   "s1_count": 2,
+   "s2_tank": "s2_tank_21",
+   "s2_engine": "s2_engine_hl10",
+   "fairing": "fairing_l"
+  },
+  "LV_HEAVY": {
+   "s1_tank": "s1_tank_285",
+   "s1_engine": "s1_engine_kl380",
+   "s1_count": 1,
+   "s2_tank": "s2_tank_21",
+   "s2_engine": "s2_engine_hl10",
+   "fairing": "fairing_l"
+  },
+  "SC_PROSPECTOR": {
+   "bus": "bus_small",
+   "tanks": [
+    "sc_tank_s"
+   ],
+   "engine": "sc_engine_mono",
+   "prop_kg": 130,
+   "adcs": [
+    "rcs"
+   ],
+   "solar": [
+    "solar_s"
+   ],
+   "battery": [
+    "battery_s"
+   ],
+   "antenna": "antenna_lga",
+   "computer": "obc_basic",
+   "instruments": [
+    "inst_neutron"
+   ],
+   "orbit": "LPO_100",
+   "years": 1,
+   "ground": "single_station"
+  },
+  "SC_SURVEYOR": {
+   "bus": "bus_medium",
+   "tanks": [
+    "sc_tank_m"
+   ],
+   "engine": "sc_engine_biprop",
+   "prop_kg": 260,
+   "adcs": [
+    "rcs",
+    "reaction_wheels"
+   ],
+   "solar": [
+    "solar_l"
+   ],
+   "battery": [
+    "battery_l"
+   ],
+   "antenna": "antenna_hga",
+   "computer": "obc_advanced",
+   "instruments": [
+    "inst_neutron",
+    "inst_altimeter",
+    "inst_radiometer",
+    "inst_camera",
+    "inst_radar"
+   ],
+   "orbit": "LPO_50",
+   "years": 1,
+   "ground": "single_station"
+  }
+ },
+ "quick_load": {
+  "launcher": "LV_MID",
+  "spacecraft": "SC_SURVEYOR"
+ }
+}

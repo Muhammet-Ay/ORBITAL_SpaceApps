@@ -1,0 +1,30 @@
+ORBITAL_SpaceApps - ilk Editor acilisindaki LogAutomationTest satirlari
+Kaynak: C:\ORBITAL_SpaceApps\Saved\Logs\ORBITAL_SpaceApps.log, satir 1692-1716 (zaman damgalari UTC)
+Makine: Muhammet, UE 5.8.4, Win64 Development Editor, 2026-11-14
+Ozet: 17 adet "LogAutomationTest: Error: Condition failed". Hepsi 10.25.20:671 aninda, "LogEngine: Initializing Engine..." satirindan hemen once ve UE::UnifiedErrorTest LogTemp satirlarindan hemen sonra yazildi. Play in Editor (10.27.11) bunlardan sonra sorunsuz calisti. Gunlukte baska "Error:" satiri yok.
+
+[2026.11.14-10.25.20:420][  0]LogTemp: Error test: UE::UnifiedErrorTest::Empty: [Boş hata]
+[2026.11.14-10.25.20:420][  0]LogTemp: Error with param: UE::UnifiedErrorTest::WithInt: [-7 tamsayısı hatası]
+[2026.11.14-10.25.20:420][  0]LogTemp: Error with context: UE::UnifiedErrorTest::Empty: [Boş hata]
+[2026.11.14-10.25.20:420][  0]LogTemp: FError that has been invalidated: ::: []
+[2026.11.14-10.25.20:420][  0]LogTemp: FError that has been moved from: ::: []
+[2026.11.14-10.25.20:508][  0]LogClass: Display: AttemptToFindUninitializedScriptStructMembers took more than 1ms to process ScriptStruct /Script/AIModule.EnvQueryInstanceCache. Time(ms): 1.2
+[2026.11.14-10.25.20:528][  0]LogClass: Display: AttemptToFindUninitializedScriptStructMembers took more than 1ms to process ScriptStruct /Script/Engine.AnimInstanceProxy. Time(ms): 1.6
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:671][  0]LogAutomationTest: Error: Condition failed
+[2026.11.14-10.25.20:677][  0]LogEngine: Initializing Engine...

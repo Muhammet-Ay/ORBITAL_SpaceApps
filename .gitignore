@@ -1,0 +1,47 @@
+# ORBITAL_SpaceApps - Unreal Engine 5 (C++) .gitignore
+
+# Unreal tarafından üretilen klasörler
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+
+# Eklenti çıktıları
+Plugins/**/Binaries/
+Plugins/**/Intermediate/
+
+# Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.sln
+*.slnx
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.user
+*.userprefs
+*.code-workspace
+
+# Derleme ara dosyaları
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+*.app
+*.ipa
+*.target
+
+# Python önbelleği (reference_model.py çalıştırılınca)
+__pycache__/
+*.pyc
+
+# İşletim sistemi
+Thumbs.db
+desktop.ini
+.DS_Store
