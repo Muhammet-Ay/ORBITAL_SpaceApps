@@ -4,10 +4,6 @@ Your spacecraft reached the Moon. Will its battery last through the first eclips
 
 ORBITAL is an Unreal Engine game for NASA Space Apps Challenge 2026. Design a lunar polar survey by choosing a science objective, assembling an uncrewed orbiter and a two-stage rocket from a 38-part catalog, and selecting one of three lunar orbits. Each choice affects the mission's mass, power, cost, data, communications, time, and delta-v budgets.
 
-## Demo video
-
-[VIDEO LINK]
-
 ## Build and play submission-v1
 
 Use Unreal Engine 5.8.4, Visual Studio with Game development with C++, and the Windows SDK. Check out the `submission-v1` tag for the demo, build the **Win64 Development Editor** target, and open `ORBITAL_SpaceApps.uproject`. See [Build and test](Docs/BUILD_AND_TEST.md) for the build command and automation tests.
