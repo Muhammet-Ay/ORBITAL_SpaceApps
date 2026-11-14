@@ -1,0 +1,1871 @@
+{
+  "catalog_schema_version": "2.1",
+  "tolerances": {
+    "delta_v_mps": 0.5,
+    "twr": 0.001,
+    "mass_kg": 0.1,
+    "cost_absolute": 1e-09,
+    "energy_and_data_relative": 0.01,
+    "code_lists": "exact"
+  },
+  "cases": [
+    {
+      "id": "TC-A",
+      "spacecraft": {
+        "bus": "bus_small",
+        "tanks": [
+          "sc_tank_s"
+        ],
+        "engine": "sc_engine_mono",
+        "prop_kg": 130,
+        "adcs": [
+          "rcs"
+        ],
+        "solar": [
+          "solar_s"
+        ],
+        "battery": [
+          "battery_s"
+        ],
+        "antenna": "antenna_lga",
+        "computer": "obc_basic",
+        "instruments": [
+          "inst_neutron"
+        ],
+        "orbit": "LPO_100",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_7",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_s"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 185.5,
+          "prop": 130,
+          "wet": 315.5,
+          "cost": 62,
+          "ops_cost": 12.0,
+          "dv": 1145.8367975165283,
+          "dv_req": 1002.7111029483098,
+          "dv_fixed": 851.555548134827,
+          "years_possible": 3.1685711298214945,
+          "life_frac": 1.0,
+          "load": 88,
+          "gen": 514.458,
+          "gen_needed": 151.70489727607364,
+          "e_ecl_wh": 68.17332125605297,
+          "batt_usable": 240.0,
+          "period_min": 117.82464665326866,
+          "eclipse_min": 46.48180994730885,
+          "gen_gb": 0.02,
+          "down_gb": 0.0288,
+          "data_frac": 1.0,
+          "storage_need": 0.013333333333333334,
+          "storage": 16,
+          "working": [
+            "inst_neutron"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 228805.5,
+          "dv1": 6198.325658675389,
+          "dv2": 6896.997724242699,
+          "dv_total": 13095.323382918088,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.693543909266223,
+          "twr2": 1.1515060843294318,
+          "cost": 86,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 308.909475,
+          "t_parking": 201.6187984265297,
+          "t_tli": 297.74671325855786,
+          "block": []
+        },
+        "total_cost": 160.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [],
+        "warn": [],
+        "launch_allowed": true,
+        "fail_phase": null,
+        "science": 28.0,
+        "per_objective": {
+          "O1_ICE": 28.0,
+          "O2_TOPO": 0.0,
+          "O3_THERMAL": 0.0,
+          "O4_IMAGING": 0.0,
+          "O5_RADAR": 0.0
+        },
+        "primary_ok": true,
+        "success": true,
+        "score": 33.51111111111111
+      }
+    },
+    {
+      "id": "TC-B",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 260,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 514,
+          "prop": 260,
+          "wet": 774,
+          "cost": 227,
+          "ops_cost": 12.0,
+          "dv": 1276.559651892171,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.009535885123602,
+          "life_frac": 1.0,
+          "load": 477,
+          "gen": 1371.8880000000001,
+          "gen_needed": 867.9911824756794,
+          "e_ecl_wh": 381.54153985482264,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30.92,
+          "down_gb": 36.0,
+          "data_frac": 1.0,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 244964,
+          "dv1": 5070.537923083793,
+          "dv2": 8758.186720918276,
+          "dv_total": 13828.72464400207,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5818330894809554,
+          "twr2": 0.42287310814378715,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 665.1898723910502,
+          "t_tli": 867.919424731917,
+          "block": []
+        },
+        "total_cost": 346.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [],
+        "warn": [],
+        "launch_allowed": true,
+        "fail_phase": null,
+        "science": 100.0,
+        "per_objective": {
+          "O1_ICE": 35.0,
+          "O2_TOPO": 20.0,
+          "O3_THERMAL": 15.0,
+          "O4_IMAGING": 20.0,
+          "O5_RADAR": 10.0
+        },
+        "primary_ok": true,
+        "success": true,
+        "score": 80.77777777777777
+      }
+    },
+    {
+      "id": "TC-C",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 260,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_7",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_s"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 514,
+          "prop": 260,
+          "wet": 774,
+          "cost": 227,
+          "ops_cost": 12.0,
+          "dv": 1276.559651892171,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.009535885123602,
+          "life_frac": 1.0,
+          "load": 477,
+          "gen": 1371.8880000000001,
+          "gen_needed": 867.9911824756794,
+          "e_ecl_wh": 381.54153985482264,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30.92,
+          "down_gb": 36.0,
+          "data_frac": 1.0,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 229264,
+          "dv1": 6157.079767279719,
+          "dv2": 6145.273058617918,
+          "dv_total": 12302.352825897637,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.6901570282801168,
+          "twr2": 1.0948209286857722,
+          "cost": 86,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 308.909475,
+          "t_parking": 213.90874719487547,
+          "t_tli": null,
+          "block": [
+            "E_LV_DELTA_V",
+            "E_FAIRING_MASS",
+            "E_FAIRING_SIZE"
+          ]
+        },
+        "total_cost": 325.0,
+        "budget": 360.0,
+        "block": [
+          "E_LV_DELTA_V",
+          "E_FAIRING_MASS",
+          "E_FAIRING_SIZE"
+        ],
+        "risk": [],
+        "warn": [],
+        "launch_allowed": false,
+        "fail_phase": null,
+        "science": 0.0,
+        "per_objective": {},
+        "primary_ok": false,
+        "success": false,
+        "score": 0.0
+      }
+    },
+    {
+      "id": "TC-D",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 150,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 514,
+          "prop": 150,
+          "wet": 664,
+          "cost": 227,
+          "ops_cost": 12.0,
+          "dv": 798.5233938859218,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 0.0,
+          "life_frac": 0.0,
+          "load": 477,
+          "gen": 1371.8880000000001,
+          "gen_needed": 867.9911824756794,
+          "e_ecl_wh": 381.54153985482264,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30.92,
+          "down_gb": 36.0,
+          "data_frac": 1.0,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [
+            "R_SC_DELTA_V_INSERTION"
+          ],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 244854,
+          "dv1": 5076.5207347294545,
+          "dv2": 8886.974559500644,
+          "dv_total": 13963.495294230099,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5825437237358295,
+          "twr2": 0.4248109535818731,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 661.6167213805676,
+          "t_tli": 863.6952669811939,
+          "block": []
+        },
+        "total_cost": 346.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [
+          "R_SC_DELTA_V_INSERTION"
+        ],
+        "warn": [],
+        "launch_allowed": true,
+        "fail_phase": "insertion",
+        "science": 0.0,
+        "per_objective": {},
+        "primary_ok": false,
+        "success": false,
+        "score": 0.0
+      }
+    },
+    {
+      "id": "TC-D2",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 205,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 514,
+          "prop": 205,
+          "wet": 719,
+          "cost": 227,
+          "ops_cost": 12.0,
+          "dv": 1046.6923246111078,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 0.6164005682686737,
+          "life_frac": 0.6164005682686737,
+          "load": 477,
+          "gen": 1371.8880000000001,
+          "gen_needed": 867.9911824756794,
+          "e_ecl_wh": 381.54153985482264,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30.92,
+          "down_gb": 36.0,
+          "data_frac": 1.0,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [
+            "R_SC_DELTA_V_LIFETIME"
+          ],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 244909,
+          "dv1": 5073.527161225847,
+          "dv2": 8821.96364764365,
+          "dv_total": 13895.490808869497,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5821883268136847,
+          "twr2": 0.42383981586014724,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 663.4029668091641,
+          "t_tli": 865.8071835070884,
+          "block": []
+        },
+        "total_cost": 346.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [
+          "R_SC_DELTA_V_LIFETIME"
+        ],
+        "warn": [],
+        "launch_allowed": true,
+        "fail_phase": null,
+        "science": 61.64005682686737,
+        "per_objective": {
+          "O1_ICE": 21.57401988940358,
+          "O2_TOPO": 12.328011365373474,
+          "O3_THERMAL": 9.246008524030106,
+          "O4_IMAGING": 12.328011365373474,
+          "O5_RADAR": 6.164005682686737
+        },
+        "primary_ok": true,
+        "success": true,
+        "score": 50.08982323927168
+      }
+    },
+    {
+      "id": "TC-E",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 260,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_s"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 504,
+          "prop": 260,
+          "wet": 764,
+          "cost": 225,
+          "ops_cost": 12.0,
+          "dv": 1297.275673610591,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.1350875319019043,
+          "life_frac": 1.0,
+          "load": 477,
+          "gen": 1371.8880000000001,
+          "gen_needed": 867.9911824756794,
+          "e_ecl_wh": 381.54153985482264,
+          "batt_usable": 240.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30.92,
+          "down_gb": 36.0,
+          "data_frac": 1.0,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [
+            "R_BATTERY_ECLIPSE"
+          ],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 244954,
+          "dv1": 5071.081098954818,
+          "dv2": 8769.692630115385,
+          "dv_total": 13840.773729070203,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5818976662214652,
+          "twr2": 0.42304854504560585,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 664.8649314563403,
+          "t_tli": 867.5353567667411,
+          "block": []
+        },
+        "total_cost": 344.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [
+          "R_BATTERY_ECLIPSE"
+        ],
+        "warn": [],
+        "launch_allowed": true,
+        "fail_phase": "eclipse",
+        "science": 0.0,
+        "per_objective": {},
+        "primary_ok": false,
+        "success": false,
+        "score": 0.0
+      }
+    },
+    {
+      "id": "TC-F",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 260,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_s"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 502,
+          "prop": 260,
+          "wet": 762,
+          "cost": 223,
+          "ops_cost": 12.0,
+          "dv": 1301.5009956427577,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.1606955442180666,
+          "life_frac": 1.0,
+          "load": 477,
+          "gen": 514.458,
+          "gen_needed": 867.9911824756794,
+          "e_ecl_wh": 381.54153985482264,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30.92,
+          "down_gb": 36.0,
+          "data_frac": 1.0,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [
+            "R_POWER_GENERATION"
+          ],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 244952,
+          "dv1": 5071.189751289652,
+          "dv2": 8771.99856405176,
+          "dv_total": 13843.188315341413,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5819105822022794,
+          "twr2": 0.42308364989541464,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 664.7999458812077,
+          "t_tli": 867.4585444583344,
+          "block": []
+        },
+        "total_cost": 342.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [
+          "R_POWER_GENERATION"
+        ],
+        "warn": [],
+        "launch_allowed": true,
+        "fail_phase": "eclipse",
+        "science": 0.0,
+        "per_objective": {},
+        "primary_ok": false,
+        "success": false,
+        "score": 0.0
+      }
+    },
+    {
+      "id": "TC-G",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 260,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_mga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O4_IMAGING",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 499,
+          "prop": 260,
+          "wet": 759,
+          "cost": 216,
+          "ops_cost": 12.0,
+          "dv": 1307.8915983236811,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.199426469556997,
+          "life_frac": 1.0,
+          "load": 439,
+          "gen": 1371.8880000000001,
+          "gen_needed": 798.8430379597971,
+          "e_ecl_wh": 351.1461970571638,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30.92,
+          "down_gb": 0.9,
+          "data_frac": 0.02910737386804657,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": [
+            "W_DATA_BOTTLENECK"
+          ]
+        },
+        "lv": {
+          "liftoff_mass": 244949,
+          "dv1": 5071.352740519752,
+          "dv2": 8775.46044416352,
+          "dv_total": 13846.813184683273,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5819299565689706,
+          "twr2": 0.4231363180953269,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 664.7024691513465,
+          "t_tli": 867.3433267988419,
+          "block": []
+        },
+        "total_cost": 335.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [],
+        "warn": [
+          "W_DATA_BOTTLENECK"
+        ],
+        "launch_allowed": true,
+        "fail_phase": null,
+        "science": 2.9107373868046573,
+        "per_objective": {
+          "O1_ICE": 1.01875808538163,
+          "O2_TOPO": 0.5821474773609314,
+          "O3_THERMAL": 0.43661060802069857,
+          "O4_IMAGING": 0.5821474773609314,
+          "O5_RADAR": 0.2910737386804657
+        },
+        "primary_ok": false,
+        "success": false,
+        "score": 2.328589909443726
+      }
+    },
+    {
+      "id": "TC-H",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 260,
+        "adcs": [
+          "rcs"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 492,
+          "prop": 260,
+          "wet": 752,
+          "cost": 218,
+          "ops_cost": 12.0,
+          "dv": 1323.0535854431423,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.291317300584034,
+          "life_frac": 1.0,
+          "load": 437,
+          "gen": 1371.8880000000001,
+          "gen_needed": 795.2036619326454,
+          "e_ecl_wh": 349.5464421730765,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 0.02,
+          "down_gb": 0.0,
+          "data_frac": 0.0,
+          "storage_need": 0.013333333333333334,
+          "storage": 256,
+          "working": [
+            "inst_neutron"
+          ],
+          "block": [],
+          "risk": [
+            "R_NEEDS_FINE_POINTING"
+          ],
+          "warn": [
+            "W_DATA_BOTTLENECK"
+          ]
+        },
+        "lv": {
+          "liftoff_mass": 244942,
+          "dv1": 5071.733098795769,
+          "dv2": 8783.552101709887,
+          "dv_total": 13855.285200505656,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5819751652701979,
+          "twr2": 0.4232592615714462,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 664.475031069951,
+          "t_tli": 867.0744893420792,
+          "block": []
+        },
+        "total_cost": 337.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [
+          "R_NEEDS_FINE_POINTING"
+        ],
+        "warn": [
+          "W_DATA_BOTTLENECK"
+        ],
+        "launch_allowed": true,
+        "fail_phase": null,
+        "science": 0.0,
+        "per_objective": {
+          "O1_ICE": 0.0,
+          "O2_TOPO": 0.0,
+          "O3_THERMAL": 0.0,
+          "O4_IMAGING": 0.0,
+          "O5_RADAR": 0.0
+        },
+        "primary_ok": false,
+        "success": false,
+        "score": 0.0
+      }
+    },
+    {
+      "id": "TC-I",
+      "spacecraft": {
+        "bus": "bus_small",
+        "tanks": [
+          "sc_tank_s"
+        ],
+        "engine": "sc_engine_mono",
+        "prop_kg": 130,
+        "adcs": [
+          "rcs"
+        ],
+        "solar": [
+          "solar_s"
+        ],
+        "battery": [
+          "battery_s"
+        ],
+        "antenna": "antenna_lga",
+        "computer": "obc_basic",
+        "instruments": [
+          "inst_neutron"
+        ],
+        "orbit": "LPO_100",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 1,
+        "s2_tank": "s2_tank_7",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_s"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 185.5,
+          "prop": 130,
+          "wet": 315.5,
+          "cost": 62,
+          "ops_cost": 12.0,
+          "dv": 1145.8367975165283,
+          "dv_req": 1002.7111029483098,
+          "dv_fixed": 851.555548134827,
+          "years_possible": 3.1685711298214945,
+          "life_frac": 1.0,
+          "load": 88,
+          "gen": 514.458,
+          "gen_needed": 151.70489727607364,
+          "e_ecl_wh": 68.17332125605297,
+          "batt_usable": 240.0,
+          "period_min": 117.82464665326866,
+          "eclipse_min": 46.48180994730885,
+          "gen_gb": 0.02,
+          "down_gb": 0.0288,
+          "data_frac": 1.0,
+          "storage_need": 0.013333333333333334,
+          "storage": 16,
+          "working": [
+            "inst_neutron"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 226605.5,
+          "dv1": 6407.059656625488,
+          "dv2": 6896.997724242699,
+          "dv_total": 13304.057380868187,
+          "dv_req": 12531.343278360124,
+          "twr1": 0.854992842035195,
+          "twr2": 1.1515060843294318,
+          "cost": 75,
+          "t1_burn": 314.8450789473684,
+          "t2_burn": 308.909475,
+          "t_parking": 192.45590991771607,
+          "t_tli": 293.2399113101942,
+          "block": [
+            "E_TWR_LIFTOFF"
+          ]
+        },
+        "total_cost": 149.0,
+        "budget": 360.0,
+        "block": [
+          "E_TWR_LIFTOFF"
+        ],
+        "risk": [],
+        "warn": [],
+        "launch_allowed": false,
+        "fail_phase": null,
+        "science": 0.0,
+        "per_objective": {},
+        "primary_ok": false,
+        "success": false,
+        "score": 0.0
+      }
+    },
+    {
+      "id": "TC-J",
+      "spacecraft": {
+        "bus": "bus_small",
+        "tanks": [
+          "sc_tank_s"
+        ],
+        "engine": "sc_engine_mono",
+        "prop_kg": 130,
+        "adcs": [
+          "rcs"
+        ],
+        "solar": [
+          "solar_s"
+        ],
+        "battery": [
+          "battery_s"
+        ],
+        "antenna": "antenna_lga",
+        "computer": "obc_basic",
+        "instruments": [
+          "inst_neutron"
+        ],
+        "orbit": "LPO_100",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_7",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_s"
+      },
+      "primary": "O4_IMAGING",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 185.5,
+          "prop": 130,
+          "wet": 315.5,
+          "cost": 62,
+          "ops_cost": 12.0,
+          "dv": 1145.8367975165283,
+          "dv_req": 1002.7111029483098,
+          "dv_fixed": 851.555548134827,
+          "years_possible": 3.1685711298214945,
+          "life_frac": 1.0,
+          "load": 88,
+          "gen": 514.458,
+          "gen_needed": 151.70489727607364,
+          "e_ecl_wh": 68.17332125605297,
+          "batt_usable": 240.0,
+          "period_min": 117.82464665326866,
+          "eclipse_min": 46.48180994730885,
+          "gen_gb": 0.02,
+          "down_gb": 0.0288,
+          "data_frac": 1.0,
+          "storage_need": 0.013333333333333334,
+          "storage": 16,
+          "working": [
+            "inst_neutron"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 228805.5,
+          "dv1": 6198.325658675389,
+          "dv2": 6896.997724242699,
+          "dv_total": 13095.323382918088,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.693543909266223,
+          "twr2": 1.1515060843294318,
+          "cost": 86,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 308.909475,
+          "t_parking": 201.6187984265297,
+          "t_tli": 297.74671325855786,
+          "block": []
+        },
+        "total_cost": 160.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [
+          "R_PRIMARY_INSTRUMENT_MISSING"
+        ],
+        "warn": [],
+        "launch_allowed": true,
+        "fail_phase": null,
+        "science": 28.0,
+        "per_objective": {
+          "O1_ICE": 28.0,
+          "O2_TOPO": 0.0,
+          "O3_THERMAL": 0.0,
+          "O4_IMAGING": 0.0,
+          "O5_RADAR": 0.0
+        },
+        "primary_ok": false,
+        "success": false,
+        "score": 22.400000000000002
+      }
+    },
+    {
+      "id": "TC-K",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 230,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_100",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 514,
+          "prop": 230,
+          "wet": 744,
+          "cost": 227,
+          "ops_cost": 12.0,
+          "dv": 1153.2821501262742,
+          "dv_req": 1002.7111029483098,
+          "dv_fixed": 851.555548134827,
+          "years_possible": 3.281379502696431,
+          "life_frac": 1.0,
+          "load": 477,
+          "gen": 1371.8880000000001,
+          "gen_needed": 822.3095000078082,
+          "e_ecl_wh": 369.5303890811053,
+          "batt_usable": 960.0,
+          "period_min": 117.82464665326866,
+          "eclipse_min": 46.48180994730885,
+          "gen_gb": 30.92,
+          "down_gb": 36.0,
+          "data_frac": 1.0,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 244934,
+          "dv1": 5072.167879830426,
+          "dv2": 8792.823691475582,
+          "dv_total": 13864.991571306007,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.582026835521458,
+          "twr2": 0.4233998559117789,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 664.2151149040826,
+          "t_tli": 866.7672529628862,
+          "block": []
+        },
+        "total_cost": 346.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [],
+        "warn": [],
+        "launch_allowed": true,
+        "fail_phase": null,
+        "science": 78.5,
+        "per_objective": {
+          "O1_ICE": 28.0,
+          "O2_TOPO": 17.0,
+          "O3_THERMAL": 13.5,
+          "O4_IMAGING": 12.0,
+          "O5_RADAR": 8.0
+        },
+        "primary_ok": true,
+        "success": true,
+        "score": 63.57777777777778
+      }
+    },
+    {
+      "id": "TC-L",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 260,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_285",
+        "s1_engine": "s1_engine_kl380",
+        "s1_count": 1,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 514,
+          "prop": 260,
+          "wet": 774,
+          "cost": 227,
+          "ops_cost": 12.0,
+          "dv": 1276.559651892171,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.009535885123602,
+          "life_frac": 1.0,
+          "load": 477,
+          "gen": 1371.8880000000001,
+          "gen_needed": 867.9911824756794,
+          "e_ecl_wh": 381.54153985482264,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30.92,
+          "down_gb": 36.0,
+          "data_frac": 1.0,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 336064,
+          "dv1": 5996.079978461968,
+          "dv2": 8758.186720918276,
+          "dv_total": 14754.266699380245,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.274402522884718,
+          "twr2": 0.42287310814378715,
+          "cost": 148,
+          "t1_burn": 215.938930625,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 572.0941744288049,
+          "t_tli": 822.1299476956145,
+          "block": []
+        },
+        "total_cost": 387.0,
+        "budget": 360.0,
+        "block": [
+          "E_BUDGET"
+        ],
+        "risk": [],
+        "warn": [],
+        "launch_allowed": false,
+        "fail_phase": null,
+        "science": 0.0,
+        "per_objective": {},
+        "primary_ok": false,
+        "success": false,
+        "score": 0.0
+      }
+    },
+    {
+      "id": "TC-M",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 260,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer",
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "hard",
+      "expected": {
+        "sc": {
+          "dry": 514,
+          "prop": 260,
+          "wet": 774,
+          "cost": 227,
+          "ops_cost": 12.0,
+          "dv": 1276.559651892171,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.009535885123602,
+          "life_frac": 1.0,
+          "load": 477,
+          "gen": 1371.8880000000001,
+          "gen_needed": 867.9911824756794,
+          "e_ecl_wh": 381.54153985482264,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30.92,
+          "down_gb": 36.0,
+          "data_frac": 1.0,
+          "storage_need": 20.613333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer",
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": []
+        },
+        "lv": {
+          "liftoff_mass": 244964,
+          "dv1": 5070.537923083793,
+          "dv2": 8758.186720918276,
+          "dv_total": 13828.72464400207,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5818330894809554,
+          "twr2": 0.42287310814378715,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 665.1898723910502,
+          "t_tli": 867.919424731917,
+          "block": []
+        },
+        "total_cost": 346.0,
+        "budget": 310.0,
+        "block": [
+          "E_BUDGET"
+        ],
+        "risk": [],
+        "warn": [],
+        "launch_allowed": false,
+        "fail_phase": null,
+        "science": 0.0,
+        "per_objective": {},
+        "primary_ok": false,
+        "success": false,
+        "score": 0.0
+      }
+    },
+    {
+      "id": "TC-N",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 240,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_s",
+          "solar_s"
+        ],
+        "battery": [
+          "battery_s",
+          "battery_s"
+        ],
+        "antenna": "antenna_mga",
+        "computer": "obc_advanced",
+        "instruments": [
+          "inst_neutron",
+          "inst_altimeter",
+          "inst_radiometer"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "hard",
+      "expected": {
+        "sc": {
+          "dry": 455,
+          "prop": 240,
+          "wet": 695,
+          "cost": 154,
+          "ops_cost": 12.0,
+          "dv": 1321.0478165273362,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.2791611253367243,
+          "life_frac": 1.0,
+          "load": 259,
+          "gen": 1028.916,
+          "gen_needed": 471.2991955161446,
+          "e_ecl_wh": 207.16825748930623,
+          "batt_usable": 480.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 0.9199999999999999,
+          "down_gb": 0.9,
+          "data_frac": 0.9782608695652175,
+          "storage_need": 0.6133333333333333,
+          "storage": 256,
+          "working": [
+            "inst_neutron",
+            "inst_altimeter",
+            "inst_radiometer"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": [
+            "W_DATA_BOTTLENECK"
+          ]
+        },
+        "lv": {
+          "liftoff_mass": 244885,
+          "dv1": 5074.832914060356,
+          "dv2": 8850.177790067273,
+          "dv_total": 13925.01070412763,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5823433894751118,
+          "twr2": 0.42426303847635877,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 662.6234329562385,
+          "t_tli": 864.8855799433206,
+          "block": []
+        },
+        "total_cost": 273.0,
+        "budget": 310.0,
+        "block": [],
+        "risk": [],
+        "warn": [
+          "W_DATA_BOTTLENECK"
+        ],
+        "launch_allowed": true,
+        "fail_phase": null,
+        "science": 68.47826086956523,
+        "per_objective": {
+          "O1_ICE": 34.239130434782616,
+          "O2_TOPO": 19.56521739130435,
+          "O3_THERMAL": 14.673913043478263,
+          "O4_IMAGING": 0.0,
+          "O5_RADAR": 0.0
+        },
+        "primary_ok": true,
+        "success": true,
+        "score": 57.16970546984574
+      }
+    },
+    {
+      "id": "TC-O",
+      "spacecraft": {
+        "bus": "bus_small",
+        "tanks": [
+          "sc_tank_s"
+        ],
+        "engine": "sc_engine_mono",
+        "prop_kg": 130,
+        "adcs": [
+          "rcs"
+        ],
+        "solar": [
+          "solar_s"
+        ],
+        "battery": [
+          "battery_s"
+        ],
+        "antenna": "antenna_lga",
+        "computer": "obc_basic",
+        "instruments": [
+          "inst_neutron"
+        ],
+        "orbit": "LPO_100",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_7",
+        "s2_engine": null,
+        "fairing": "fairing_s"
+      },
+      "primary": "O1_ICE",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 185.5,
+          "prop": 130,
+          "wet": 315.5,
+          "cost": 62,
+          "ops_cost": 12.0,
+          "dv": 1145.8367975165283,
+          "dv_req": 1002.7111029483098,
+          "dv_fixed": 851.555548134827,
+          "years_possible": 3.1685711298214945,
+          "life_frac": 1.0,
+          "load": 88,
+          "gen": 514.458,
+          "gen_needed": 151.70489727607364,
+          "e_ecl_wh": 68.17332125605297,
+          "batt_usable": 240.0,
+          "period_min": 117.82464665326866,
+          "eclipse_min": 46.48180994730885,
+          "gen_gb": 0.02,
+          "down_gb": 0.0288,
+          "data_frac": 1.0,
+          "storage_need": 0.013333333333333334,
+          "storage": 16,
+          "working": [
+            "inst_neutron"
+          ],
+          "block": [],
+          "risk": [],
+          "warn": []
+        },
+        "lv": {
+          "block": [
+            "E_MISSING_REQUIRED_PART"
+          ],
+          "cost": 0.0
+        },
+        "total_cost": 74.0,
+        "budget": 360.0,
+        "block": [
+          "E_MISSING_REQUIRED_PART"
+        ],
+        "risk": [],
+        "warn": [],
+        "launch_allowed": false,
+        "fail_phase": null,
+        "science": 0.0,
+        "per_objective": {},
+        "primary_ok": false,
+        "success": false,
+        "score": 0.0
+      }
+    },
+    {
+      "id": "TC-P",
+      "spacecraft": {
+        "bus": "bus_medium",
+        "tanks": [
+          "sc_tank_m"
+        ],
+        "engine": "sc_engine_biprop",
+        "prop_kg": 260,
+        "adcs": [
+          "rcs",
+          "reaction_wheels"
+        ],
+        "solar": [
+          "solar_l"
+        ],
+        "battery": [
+          "battery_l"
+        ],
+        "antenna": "antenna_hga",
+        "computer": "obc_basic",
+        "instruments": [
+          "inst_camera",
+          "inst_radar"
+        ],
+        "orbit": "LPO_50",
+        "years": 1,
+        "ground": "single_station"
+      },
+      "launcher": {
+        "s1_tank": "s1_tank_200",
+        "s1_engine": "s1_engine_kl190",
+        "s1_count": 2,
+        "s2_tank": "s2_tank_21",
+        "s2_engine": "s2_engine_hl10",
+        "fairing": "fairing_l"
+      },
+      "primary": "O4_IMAGING",
+      "difficulty": "normal",
+      "expected": {
+        "sc": {
+          "dry": 460,
+          "prop": 260,
+          "wet": 720,
+          "cost": 163,
+          "ops_cost": 12.0,
+          "dv": 1397.1716831637468,
+          "dv_req": 1109.9862308467766,
+          "dv_fixed": 859.0783916788878,
+          "years_possible": 2.740517892830123,
+          "life_frac": 1.0,
+          "load": 390,
+          "gen": 1371.8880000000001,
+          "gen_needed": 709.6783252945806,
+          "e_ecl_wh": 311.95220239702485,
+          "batt_usable": 960.0,
+          "period_min": 113.04808459140574,
+          "eclipse_min": 47.992646522619204,
+          "gen_gb": 30,
+          "down_gb": 36.0,
+          "data_frac": 0.8,
+          "storage_need": 20.0,
+          "storage": 16,
+          "working": [
+            "inst_camera",
+            "inst_radar"
+          ],
+          "block": [],
+          "risk": [
+            "R_STORAGE"
+          ],
+          "warn": [
+            "W_DATA_BOTTLENECK"
+          ]
+        },
+        "lv": {
+          "liftoff_mass": 244910,
+          "dv1": 5073.472772778738,
+          "dv2": 8820.79318125965,
+          "dv_total": 13894.265954038388,
+          "dv_req": 12531.343278360124,
+          "twr1": 1.5821818665289813,
+          "twr2": 0.42382219990770087,
+          "cost": 107,
+          "t1_burn": 157.4225394736842,
+          "t2_burn": 917.9024399999998,
+          "t_parking": 663.4354501154443,
+          "t_tli": 865.8455849978849,
+          "block": []
+        },
+        "total_cost": 282.0,
+        "budget": 360.0,
+        "block": [],
+        "risk": [
+          "R_STORAGE"
+        ],
+        "warn": [
+          "W_DATA_BOTTLENECK"
+        ],
+        "launch_allowed": true,
+        "fail_phase": null,
+        "science": 24.0,
+        "per_objective": {
+          "O1_ICE": 0.0,
+          "O2_TOPO": 0.0,
+          "O3_THERMAL": 0.0,
+          "O4_IMAGING": 16.0,
+          "O5_RADAR": 8.0
+        },
+        "primary_ok": true,
+        "success": true,
+        "score": 23.53333333333334
+      }
+    }
+  ]
+}
