@@ -80,6 +80,31 @@ static FString OrbitalSocketTitle(const Orbital::Id& Socket, int32 Index)
 	return OrbitalGameText(Orbital::Assembly::SocketName(Socket, Index));
 }
 
+// Short button labels for mission plan choices; the action still carries the catalog ID.
+static FString OrbitalChoiceLabel(const FString& Id)
+{
+	struct FChoiceLabel
+	{
+		const TCHAR* Id;
+		const TCHAR* Label;
+	};
+	static const FChoiceLabel Labels[] = {
+		{TEXT("O1_ICE"), TEXT("Ice")}, {TEXT("O2_TOPO"), TEXT("Terrain")}, {TEXT("O3_THERMAL"), TEXT("Thermal")},
+		{TEXT("O4_IMAGING"), TEXT("Imaging")}, {TEXT("O5_RADAR"), TEXT("Radar")},
+		{TEXT("LPO_50"), TEXT("50 km")}, {TEXT("LPO_100"), TEXT("100 km")}, {TEXT("ELL_30x216"), TEXT("30 x 216 km")},
+		{TEXT("single_station"), TEXT("1 station")}, {TEXT("network_3"), TEXT("3 stations")},
+		{TEXT("easy"), TEXT("Easy")}, {TEXT("normal"), TEXT("Normal")}, {TEXT("hard"), TEXT("Hard")},
+	};
+	for (const FChoiceLabel& Entry : Labels)
+	{
+		if (Id == Entry.Id)
+		{
+			return Entry.Label;
+		}
+	}
+	return Id;
+}
+
 static FString OrbitalNumber(double Value)
 {
 	const double Size = FMath::Abs(Value);
@@ -626,7 +651,7 @@ void AOrbitalAssemblyHUD::DrawHUD()
 		for (int32 Index = 0; Index < Ids.Num(); ++Index)
 		{
 			const bool bOn = Ids[Index] == CurrentId;
-			Button(Ids[Index], StartX + Index * (ChoiceWidth + Gap), Y, ChoiceWidth, bOn ? ButtonOn : ButtonColor,
+			Button(OrbitalChoiceLabel(Ids[Index]), StartX + Index * (ChoiceWidth + Gap), Y, ChoiceWidth, bOn ? ButtonOn : ButtonColor,
 				FString(Kind) + TEXT(":") + Ids[Index], bInteractive && !bOn);
 		}
 		Y += RowHeight + 3.0f * Unit;
