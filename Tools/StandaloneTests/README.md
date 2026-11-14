@@ -3,11 +3,11 @@
 Plain C++ tests for the headers in `Source/ORBITAL_SpaceApps/Assembly/`. Kept outside `Source/` so Unreal does not compile them.
 
     cd Tools/StandaloneTests
-    g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps -I../../Source/ORBITAL_SpaceApps/Assembly assembly_tests.cpp -o assembly_tests && ./assembly_tests exports.json
-    g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps -I../../Source/ORBITAL_SpaceApps/Assembly screen_tests.cpp   -o screen_tests   && ./screen_tests
-    g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps -I../../Source/ORBITAL_SpaceApps/Assembly timeline_tests.cpp -o timeline_tests && ./timeline_tests   (-v prints every event)
+    g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps/Assembly assembly_tests.cpp -o assembly_tests && ./assembly_tests exports.json
+    g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps/Assembly screen_tests.cpp   -o screen_tests   && ./screen_tests
+    g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps/Assembly timeline_tests.cpp -o timeline_tests && ./timeline_tests   (-v prints every event)
     python check_exports.py ../../Docs/CLAUDE_RESEARCH/PART_CATALOG.json exports.json
-    (MSVC: cl /std:c++17 /EHsc /O2 /I..\..\Source\ORBITAL_SpaceApps /I..\..\Source\ORBITAL_SpaceApps\Assembly <file>.cpp)
+    (MSVC: cl /std:c++17 /EHsc /O2 /I..\..\Source\ORBITAL_SpaceApps\Assembly <file>.cpp)
 
 Expected: 118, 90 and 418 checks with 0 failures; 9 exported objects valid.
 

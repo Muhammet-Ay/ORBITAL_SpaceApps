@@ -8,7 +8,7 @@
 //
 // Lifetime: the Catalog and Mission passed in must outlive the Assembly.
 
-#include "OrbitalEngineering_v2.1.h"
+#include "../OrbitalEngineering_v2.1.h"
 
 #include <cstdio>
 #include <cstdlib>
