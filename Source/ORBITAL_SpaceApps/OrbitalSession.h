@@ -24,13 +24,6 @@ struct SessionLaunch
     MissionResult result;
 };
 
-struct BestScore
-{
-    Id designName;
-    double score, science, costMCr;
-    Id difficulty;
-};
-
 namespace SessionJson
 {
 // All string fields in the v2.1 design format are ASCII catalog IDs.
@@ -232,7 +225,6 @@ public:
     SessionPhase Phase() const { return Step; }
     const SessionDesign& Design() const { return Current; }
     const std::optional<SessionLaunch>& LaunchSnapshot() const { return Snapshot; }
-    const std::vector<BestScore>& Scores() const { return Records; }
 
     bool Begin(SessionDesign design)
     {
@@ -298,16 +290,10 @@ public:
         return true;
     }
 
-    bool Finish(Id designName)
+    bool Finish()
     {
-        if (Step != SessionPhase::Launch || designName.empty())
+        if (Step != SessionPhase::Launch)
             return false;
-        const auto& result = Snapshot->result;
-        const BestScore entry{std::move(designName), result.score, result.science,
-                              result.totalCostMCr, Snapshot->design.difficulty};
-        const auto place = std::find_if(Records.begin(), Records.end(),
-            [&](const BestScore& saved) { return saved.score < entry.score; });
-        Records.insert(place, entry);
         Step = SessionPhase::Report;
         return true;
     }
@@ -355,7 +341,6 @@ private:
     std::optional<MissionResult> Result;
     std::optional<DashboardReview> Findings;
     std::optional<SessionLaunch> Snapshot;
-    std::vector<BestScore> Records;
 
     bool Editable() const
     {
