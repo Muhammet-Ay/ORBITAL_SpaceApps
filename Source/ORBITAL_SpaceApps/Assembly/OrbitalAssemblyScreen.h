@@ -57,8 +57,8 @@ public:
     using Listener = std::function<void(const AssemblySnapshot&)>;
 
     AssemblyScreen(const Catalog& catalog, const Mission& mission, AssemblyRules rules)
-        : catalog_(&catalog), mission_(&mission), assembly_(catalog, mission, std::move(rules)),
-          snapshot_(assembly_.Snapshot())
+        : catalog_(&catalog), mission_(&mission), rules_(std::move(rules)),
+          assembly_(catalog, mission, rules_), snapshot_(assembly_.Snapshot())
     {
     }
 
@@ -146,6 +146,67 @@ public:
     ChangeResult SetGround(const Id& ground) { return Plan(assembly_.SetGround(ground)); }
     ChangeResult SetPropellant(double kg) { return Plan(assembly_.SetPropellant(kg)); }
 
+    // Replaces the whole design (saved design, reference case, return from the report).
+    // Parts are attached through the normal socket rules; the separator, which the design
+    // format does not list, is added with the stage 1 tank. On any refusal nothing changes.
+    bool Load(const SpacecraftDesign& spacecraft, const LauncherDesign& launcher)
+    {
+        Assembly next(*catalog_, *mission_, rules_);
+        bool ok = true;
+        const auto one = [&](const Id& id) {
+            if (!id.empty())
+                ok = next.Attach(id).ok && ok;
+        };
+        const auto many = [&](const Ids& ids) {
+            for (const Id& id : ids)
+                ok = next.Attach(id).ok && ok;
+        };
+        one(launcher.firstTank);
+        one(launcher.firstEngine);
+        if (!launcher.firstTank.empty())
+            one(SeparatorId());
+        one(launcher.secondTank);
+        one(launcher.secondEngine);
+        one(launcher.fairing);
+        ok = next.SetStage1EngineCount(launcher.firstEngineCount).empty() && ok;
+        one(spacecraft.bus);
+        one(spacecraft.engine);
+        one(spacecraft.antenna);
+        one(spacecraft.computer);
+        many(spacecraft.tanks);
+        many(spacecraft.adcs);
+        many(spacecraft.solar);
+        many(spacecraft.battery);
+        many(spacecraft.instruments);
+        ok = next.SetOrbit(spacecraft.orbit).empty() && ok;
+        ok = next.SetYears(spacecraft.years).empty() && ok;
+        ok = next.SetGround(spacecraft.ground).empty() && ok;
+        ok = next.SetPropellant(spacecraft.propKg).empty() && ok;
+        if (!ok)
+            return false;
+        assembly_ = std::move(next);
+        Changed();
+        return true;
+    }
+
+    // Catalog parts that fit a socket type in this mission mode, sorted by ID.
+    Ids PartsForSocket(const Id& socket) const
+    {
+        Ids ids;
+        for (const auto& [id, part] : *catalog_)
+            if (FitsSlot(part, socket, mission_->mode))
+                ids.push_back(id);
+        std::sort(ids.begin(), ids.end());
+        return ids;
+    }
+
+    // The separator part (the design format has no field for it; it is implied by the stack).
+    Id SeparatorId() const
+    {
+        const Ids ids = PartsForSocket("separator");
+        return ids.empty() ? Id{} : ids.front();
+    }
+
     // True once the probe is "on the rocket": a bus and a fairing both exist.
     bool ProbeOnRocket() const { return !snapshot_.spacecraft.bus.empty() && !snapshot_.launcher.fairing.empty(); }
 
@@ -175,6 +236,7 @@ public:
 private:
     const Catalog* catalog_;
     const Mission* mission_;
+    AssemblyRules rules_;
     Assembly assembly_;
     AssemblySnapshot snapshot_;
     Listener listener_;

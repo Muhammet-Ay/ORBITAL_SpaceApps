@@ -1,7 +1,7 @@
 // First Play in Editor demo for the assembly screen (TEMPORARY, remove once the real UI exists).
 // On BeginPlay of a game world it loads PART_CATALOG.json, builds TC-A through UOrbitalAssemblyScreen, tries a battery
 // in a solar socket, removes the bus, and prints each step on screen and in the Output Log
-// (category LogOrbitalAssembly). Turn off with the console variable: orbital.AssemblyDemo 0
+// (category LogOrbitalAssembly). Off by default; turn on with the console variable: orbital.AssemblyDemo 1
 #pragma once
 
 #include "CoreMinimal.h"

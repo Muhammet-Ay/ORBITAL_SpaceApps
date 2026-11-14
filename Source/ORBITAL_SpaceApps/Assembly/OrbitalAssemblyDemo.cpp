@@ -10,8 +10,8 @@
 DEFINE_LOG_CATEGORY_STATIC(LogOrbitalAssembly, Log, All);
 
 static TAutoConsoleVariable<int32> CVarOrbitalAssemblyDemo(
-	TEXT("orbital.AssemblyDemo"), 1,
-	TEXT("1: run the TC-A assembly demo when Play in Editor starts. 0: off."));
+	TEXT("orbital.AssemblyDemo"), 0,
+	TEXT("1: print the TC-A assembly demo when Play in Editor starts. 0: off (default). The same script is the automation test ORBITAL.Assembly.DemoTCA."));
 
 bool RunOrbitalAssemblyDemo(UOrbitalAssemblyScreen& Screen, TArray<FString>& Lines)
 {
