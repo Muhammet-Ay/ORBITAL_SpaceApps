@@ -80,6 +80,31 @@ static FString OrbitalSocketTitle(const Orbital::Id& Socket, int32 Index)
 	return OrbitalGameText(Orbital::Assembly::SocketName(Socket, Index));
 }
 
+// Short button labels for mission plan choices; the action still carries the catalog ID.
+static FString OrbitalChoiceLabel(const FString& Id)
+{
+	struct FChoiceLabel
+	{
+		const TCHAR* Id;
+		const TCHAR* Label;
+	};
+	static const FChoiceLabel Labels[] = {
+		{TEXT("O1_ICE"), TEXT("Ice")}, {TEXT("O2_TOPO"), TEXT("Terrain")}, {TEXT("O3_THERMAL"), TEXT("Thermal")},
+		{TEXT("O4_IMAGING"), TEXT("Imaging")}, {TEXT("O5_RADAR"), TEXT("Radar")},
+		{TEXT("LPO_50"), TEXT("50 km")}, {TEXT("LPO_100"), TEXT("100 km")}, {TEXT("ELL_30x216"), TEXT("30 x 216 km")},
+		{TEXT("single_station"), TEXT("1 station")}, {TEXT("network_3"), TEXT("3 stations")},
+		{TEXT("easy"), TEXT("Easy")}, {TEXT("normal"), TEXT("Normal")}, {TEXT("hard"), TEXT("Hard")},
+	};
+	for (const FChoiceLabel& Entry : Labels)
+	{
+		if (Id == Entry.Id)
+		{
+			return Entry.Label;
+		}
+	}
+	return Id;
+}
+
 static FString OrbitalNumber(double Value)
 {
 	const double Size = FMath::Abs(Value);
@@ -153,6 +178,15 @@ Orbital::GameFlow* UOrbitalGameStateSubsystem::GetFlow()
 	{
 		TArray<FString> Cells;
 		Line.ParseIntoArray(Cells, TEXT("|"), false);
+		// "Part tooltips" table: | part id | tooltip |
+		if (Cells.Num() == 4)
+		{
+			const FString PartId = Cells[1].TrimStartAndEnd();
+			if (Catalog.Parts.count(OrbitalGameId(PartId)) > 0)
+			{
+				PartDescriptions.Add(PartId, Cells[2].TrimStartAndEnd());
+			}
+		}
 		if (Cells.Num() >= 6)
 		{
 			const FString Code = Cells[1].TrimStartAndEnd();
@@ -181,8 +215,8 @@ Orbital::GameFlow* UOrbitalGameStateSubsystem::GetFlow()
 	Loaded->Rules.defaultOrbit = MoveTemp(Catalog.DefaultOrbit);
 	Data = Loaded;
 	Flow = MakeUnique<Orbital::GameFlow>(Loaded->Parts, Loaded->Mission, Loaded->Rules, MoveTemp(Presets));
-	UE_LOG(LogOrbitalGame, Display, TEXT("Game state ready: %d parts, %d part names, %d UI copy rows"),
-		static_cast<int32>(Loaded->Parts.size()), PartNames.Num(), Causes.Num());
+	UE_LOG(LogOrbitalGame, Display, TEXT("Game state ready: %d parts, %d part names, %d part descriptions, %d UI copy rows"),
+		static_cast<int32>(Loaded->Parts.size()), PartNames.Num(), PartDescriptions.Num(), Causes.Num());
 	return Flow.Get();
 }
 
@@ -191,6 +225,12 @@ FString UOrbitalGameStateSubsystem::PartName(const Orbital::Id& PartId) const
 	const FString Id = OrbitalGameText(PartId);
 	const FString* Name = PartNames.Find(Id);
 	return Name ? *Name : Id;
+}
+
+FString UOrbitalGameStateSubsystem::PartDescription(const Orbital::Id& PartId) const
+{
+	const FString* Text = PartDescriptions.Find(OrbitalGameText(PartId));
+	return Text ? *Text : FString();
 }
 
 FString UOrbitalGameStateSubsystem::CauseText(const Orbital::Id& Code) const
@@ -575,14 +615,21 @@ void AOrbitalAssemblyHUD::DrawHUD()
 				Text += FString::Printf(TEXT("   %s kg, %s M"), *OrbitalNumber(Found->second.massKg),
 					*OrbitalNumber(Found->second.costMCr));
 			}
-			DrawRect(bCurrent ? ButtonOn : RowColor, MidX, Y, MidW, RowHeight - 2.0f);
+			// Name and numbers on the first line, the part's description under it.
+			const TArray<FString> DescriptionLines = WrapText(State->PartDescription(PartId), MidW - Pad * 3.0f, Font, Scale);
+			const float BlockHeight = RowHeight * (1 + DescriptionLines.Num());
+			DrawRect(bCurrent ? ButtonOn : RowColor, MidX, Y, MidW, BlockHeight - 2.0f);
 			Label(Text, White, MidX + Pad, Y);
+			for (int32 LineIndex = 0; LineIndex < DescriptionLines.Num(); ++LineIndex)
+			{
+				Label(DescriptionLines[LineIndex], bCurrent ? White : Dim, MidX + Pad * 2.0f, Y + RowHeight * (LineIndex + 1));
+			}
 			if (bInteractive && !bCurrent)
 			{
-				AddHitBox(FVector2D(MidX, Y), FVector2D(MidW, RowHeight - 2.0f),
+				AddHitBox(FVector2D(MidX, Y), FVector2D(MidW, BlockHeight - 2.0f),
 					FName(*(FString(TEXT("p:")) + OrbitalGameText(PartId))), true);
 			}
-			Y += RowHeight;
+			Y += BlockHeight;
 		}
 		if (!Current.empty())
 		{
@@ -604,7 +651,7 @@ void AOrbitalAssemblyHUD::DrawHUD()
 		for (int32 Index = 0; Index < Ids.Num(); ++Index)
 		{
 			const bool bOn = Ids[Index] == CurrentId;
-			Button(Ids[Index], StartX + Index * (ChoiceWidth + Gap), Y, ChoiceWidth, bOn ? ButtonOn : ButtonColor,
+			Button(OrbitalChoiceLabel(Ids[Index]), StartX + Index * (ChoiceWidth + Gap), Y, ChoiceWidth, bOn ? ButtonOn : ButtonColor,
 				FString(Kind) + TEXT(":") + Ids[Index], bInteractive && !bOn);
 		}
 		Y += RowHeight + 3.0f * Unit;
