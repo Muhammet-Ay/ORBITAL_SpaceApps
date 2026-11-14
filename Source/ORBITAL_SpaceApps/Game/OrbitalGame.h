@@ -29,7 +29,7 @@ struct FOrbitalAssemblyData;
 
 // Which screen the assembly HUD draws. Kept in the game state so that a level reload
 // (Redesign) returns to assembly and not to the menu.
-enum class EOrbitalScreen : uint8 { MainMenu, Missions, Settings, Game };
+enum class EOrbitalScreen : uint8 { MainMenu, Missions, Settings, Credits, Game };
 
 UCLASS()
 class ORBITAL_SPACEAPPS_API UOrbitalGameStateSubsystem : public UGameInstanceSubsystem

@@ -16,6 +16,7 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -343,7 +344,7 @@ void AOrbitalGameDirector::Tick(float DeltaSeconds)
 //   o:<orbit>  y:<years>  g:<ground>  m:<objective>  d:<difficulty>   mission plan
 //   f:<+/-kg>           change propellant      e:<+/-1>      change stage 1 engine count
 //   a:launch  a:confirm  a:back                launch, and the design review answers
-//   n:menu  n:missions  n:settings  n:game     menu navigation
+//   n:menu  n:missions  n:settings  n:credits  n:game  n:quit     menu navigation
 //   k:<mission card id>                        start a mission from its card
 //   v:<+/-percent>  q:<0..3>                   settings: sound volume, graphics quality
 void AOrbitalGameDirector::HandleAction(const FString& Action)
@@ -357,8 +358,16 @@ void AOrbitalGameDirector::HandleAction(const FString& Action)
 	}
 	if (Kind == TEXT("n"))
 	{
+		if (Argument == TEXT("quit"))
+		{
+			// Closes the game; in Play in Editor it ends the play session.
+			UWorld* World = GetWorld();
+			UKismetSystemLibrary::QuitGame(this, World ? World->GetFirstPlayerController() : nullptr, EQuitPreference::Quit, false);
+			return;
+		}
 		State->SetScreen(Argument == TEXT("missions") ? EOrbitalScreen::Missions
 			: Argument == TEXT("settings") ? EOrbitalScreen::Settings
+			: Argument == TEXT("credits") ? EOrbitalScreen::Credits
 			: Argument == TEXT("game") ? EOrbitalScreen::Game : EOrbitalScreen::MainMenu);
 		return;
 	}
@@ -957,8 +966,11 @@ bool AOrbitalAssemblyHUD::DrawMenu(UOrbitalGameStateSubsystem& State, float Widt
 		Centered(TEXT("Design a mission to the Moon's poles. Build it, launch it, and learn why it worked."), Dim,
 			Height * 0.36f, Scale);
 		const float ButtonWidth = Width * 0.26f, X = (Width - ButtonWidth) * 0.5f;
-		MenuButton(TEXT("Missions"), X, Height * 0.48f, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:missions"), Font, HeadScale * 0.8f);
-		MenuButton(TEXT("Settings"), X, Height * 0.48f + ButtonHeight * 1.3f, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:settings"), Font, HeadScale * 0.8f);
+		const float FirstY = Height * 0.44f, Step = ButtonHeight * 1.22f;
+		MenuButton(TEXT("Missions"), X, FirstY, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:missions"), Font, HeadScale * 0.8f);
+		MenuButton(TEXT("Settings"), X, FirstY + Step, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:settings"), Font, HeadScale * 0.8f);
+		MenuButton(TEXT("Credits"), X, FirstY + Step * 2.0f, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:credits"), Font, HeadScale * 0.8f);
+		MenuButton(TEXT("Quit"), X, FirstY + Step * 3.0f, ButtonWidth, ButtonHeight, FLinearColor(0.30f, 0.30f, 0.34f, 0.95f), TEXT("n:quit"), Font, HeadScale * 0.8f);
 		Centered(TEXT("NASA Space Apps Challenge 2026  |  Team Three-Body Problem."), Dim, Height * 0.90f, Scale * 0.85f);
 		return true;
 	}
@@ -1001,6 +1013,52 @@ bool AOrbitalAssemblyHUD::DrawMenu(UOrbitalGameStateSubsystem& State, float Widt
 				}
 				MenuButton(TEXT("Start"), X + Inset, CardTop + CardHeight - ButtonHeight - Inset, CardWidth - Inset * 2.0f, ButtonHeight,
 					ButtonOn, FString(TEXT("k:")) + OrbitalGameText(Card.id), Font, Scale * 1.2f);
+			}
+		}
+		MenuButton(TEXT("Back"), Width * 0.05f, Height * 0.86f, Width * 0.14f, ButtonHeight, ButtonColor, TEXT("n:menu"), Font, Scale);
+		return true;
+	}
+
+	if (Screen == EOrbitalScreen::Credits)
+	{
+		// NASA data sources as listed in README.md and Docs/CHALLENGE_TRACEABILITY.md.
+		struct FCreditLine
+		{
+			const TCHAR* Text;
+			int32 Style; // 0 body, 1 section heading, 2 gap
+		};
+		static const FCreditLine CreditLines[] = {
+			{TEXT("NASA DATA AND RESOURCES"), 1},
+			{TEXT("NSSDC planetary fact sheets: Earth and Moon constants for the engineering model."), 0},
+			{TEXT("Blue Marble Next Generation: Earth texture. NASA Earth Observatory / NASA Visible Earth."), 0},
+			{TEXT("CGI Moon Kit: Moon texture from LRO/LROC data. NASA's Scientific Visualization Studio."), 0},
+			{TEXT("Deep Star Maps 2020: star background. NASA/Goddard Space Flight Center Scientific Visualization Studio. Gaia DR2: ESA/Gaia/DPAC."), 0},
+			{TEXT("Credit: NASA"), 0},
+			{TEXT(""), 2},
+			{TEXT("TEAM THREE-BODY PROBLEM."), 1},
+			{TEXT("Muhammet: Unreal project setup, scene, lighting, flight view and submission materials."), 0},
+			{TEXT("Isa: vehicle assembly, game screens and mission timeline."), 0},
+			{TEXT("Ram: engineering integration, JSON loader, dashboard, session flow and documentation."), 0},
+			{TEXT(""), 2},
+			{TEXT("NOTES"), 1},
+			{TEXT("Sounds were generated for this project. They are not NASA recordings."), 0},
+			{TEXT("The team used Claude, ChatGPT/Codex and Gemini to help write code, tests, documentation and UI text, and directed and reviewed that work."), 0},
+			{TEXT("ORBITAL uses a simplified educational model. Its estimates are unsuitable for real flight planning."), 0},
+		};
+		Centered(TEXT("CREDITS"), FLinearColor::White, Height * 0.07f, HeadScale);
+		const float Left = Width * 0.12f, TextWidth = Width * 0.76f;
+		float Y = Height * 0.07f + TextHeight * 3.2f;
+		for (const FCreditLine& Entry : CreditLines)
+		{
+			if (Entry.Style == 2)
+			{
+				Y += RowHeight * 0.6f;
+				continue;
+			}
+			for (const FString& Line : WrapText(Entry.Text, TextWidth, Font, Scale))
+			{
+				DrawText(Line, Entry.Style == 1 ? Accent : FLinearColor::White, Left, Y, Font, Scale);
+				Y += RowHeight;
 			}
 		}
 		MenuButton(TEXT("Back"), Width * 0.05f, Height * 0.86f, Width * 0.14f, ButtonHeight, ButtonColor, TEXT("n:menu"), Font, Scale);
