@@ -27,13 +27,28 @@ class APlayerController;
 class UFont;
 struct FOrbitalAssemblyData;
 
+// Which screen the assembly HUD draws. Kept in the game state so that a level reload
+// (Redesign) returns to assembly and not to the menu.
+enum class EOrbitalScreen : uint8 { MainMenu, Missions, Settings, Game };
+
 UCLASS()
 class ORBITAL_SPACEAPPS_API UOrbitalGameStateSubsystem : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
 public:
+	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
+
+	// Main menu state and settings.
+	EOrbitalScreen GetScreen() const { return Screen; }
+	void SetScreen(EOrbitalScreen InScreen) { Screen = InScreen; }
+	const FString& GetMissionTitle() const { return MissionTitle; }
+	void SetMissionTitle(const FString& Title) { MissionTitle = Title; }
+	int32 GetVolumePercent() const { return VolumePercent; }
+	void SetVolumePercent(int32 Percent, UWorld* World); // 0..100, applied to the audio device
+	int32 GetQuality() const;                             // 0 low .. 3 epic, -1 custom
+	void SetQuality(int32 Level);
 
 	// The game flow, created on first use from Docs/CLAUDE_RESEARCH/PART_CATALOG.json.
 	// Null if the catalog did not load; GetLoadError() says why.
@@ -52,7 +67,9 @@ private:
 	TUniquePtr<Orbital::GameFlow> Flow;
 	TMap<FString, FString> PartNames;
 	TMap<FString, FString> Causes, Fixes;
-	FString LoadError;
+	FString LoadError, MissionTitle;
+	EOrbitalScreen Screen = EOrbitalScreen::MainMenu;
+	int32 VolumePercent = 100;
 	bool bLoadTried = false;
 };
 
@@ -99,6 +116,10 @@ public:
 
 private:
 	TArray<FString> WrapText(const FString& Text, float MaxWidth, UFont* Font, float Scale) const;
+	// Main menu, mission cards and settings. Returns true if it drew a menu screen.
+	bool DrawMenu(UOrbitalGameStateSubsystem& State, float Width, float Height, float Unit, UFont* Font);
+	void MenuButton(const FString& Text, float X, float Y, float ButtonWidth, float ButtonHeight,
+		const FLinearColor& Color, const FString& Action, UFont* Font, float Scale);
 };
 
 // Spawns the director when a game world begins play on L_Mission, and keeps the

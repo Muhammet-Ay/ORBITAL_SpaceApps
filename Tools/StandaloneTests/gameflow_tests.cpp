@@ -119,10 +119,36 @@ void ReviewAndLoop()
     CHECK(f.Screen().Snapshot().spacecraft.instruments == Ids{"inst_neutron"});
     CHECK((f.Screen().PartsForSocket("battery") == Ids{"battery_l", "battery_s"}));
 }
+void MissionMenu()
+{
+    std::printf("main menu mission cards\n");
+    const std::vector<MissionCard> cards = MissionCards();
+    CHECK(cards.size() == 3 && cards[0].title == "Ice Prospector" && cards[1].title == "Landing Site Scout" && cards[2].title == "Full Polar Survey");
+    const double budgets[] = {310.0, 360.0, 420.0};
+    for (std::size_t i = 0; i < cards.size(); ++i)
+    {
+        GameFlow flow = NewFlow();
+        CHECK(flow.StartMission(cards[i]) && flow.Primary() == cards[i].primary && flow.Difficulty() == cards[i].difficulty);
+        CHECK(flow.Preview().budgetMCr == budgets[i] && !cards[i].summary.empty() && flow.Review() != nullptr);
+        std::printf("  %s: primary %s, budget %.0f M\n", cards[i].title.c_str(), cards[i].primary.c_str(), flow.Preview().budgetMCr);
+    }
+    // Same design, different card, different outcome: no new physics, only goal and budget.
+    GameFlow flow = NewFlow();
+    CHECK(flow.LoadCase("TC-B"));
+    CHECK(flow.StartMission(cards[0]) && !flow.Preview().launchAllowed);                      // 346 M over the 310 M budget (TC-M)
+    CHECK(flow.Screen().Snapshot().spacecraft.bus == "bus_medium");                           // design kept
+    CHECK(flow.StartMission(cards[2]) && flow.Preview().success);
+    CHECK(std::fabs(flow.Preview().score - (80.0 + 20.0 * (1.0 - 346.0 / 420.0))) < 1e-9);    // larger budget, better cost score
+    CHECK(flow.LoadCase("TC-A") && flow.StartMission(cards[1]));
+    CHECK(!flow.Preview().success && std::fabs(flow.Preview().score - 22.4) < 1e-9);          // no camera for the imaging goal (TC-J)
+    MissionCard bad = cards[0]; bad.primary = "O9_NONE";
+    CHECK(!flow.StartMission(bad) && flow.Primary() == "O4_IMAGING");
+    CHECK(flow.RequestLaunch() == LaunchAnswer::NeedsConfirmation && !flow.StartMission(cards[0])); // not while the review is open
+}
 } // namespace
 int main()
 {
-    FirstGoal(); EmptyAndBuildUp(); ReviewAndLoop();
+    FirstGoal(); EmptyAndBuildUp(); ReviewAndLoop(); MissionMenu();
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }
