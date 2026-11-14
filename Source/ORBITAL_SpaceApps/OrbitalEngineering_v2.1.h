@@ -86,6 +86,8 @@ struct SpacecraftResult
     double generatedGBPerDay = 0, downlinkGBPerDay = 0, dataFraction = 1;
     double requiredStorageGB = 0, storageGB = 0;
     Ids block, risk, warn, missing, working;
+    double busMassLimitKg = 0, plannedYears = 0;
+    double effectiveAntennaMbps = 0, effectiveContactHoursDay = 0;
 };
 
 struct LauncherResult
@@ -96,6 +98,7 @@ struct LauncherResult
     // Elapsed burn time after upper-stage ignition. Empty if unreachable.
     std::optional<double> parkingS, tliS;
     Ids block;
+    double fairingMassLimitKg = 0;
 };
 
 struct MissionResult
@@ -199,6 +202,8 @@ inline SpacecraftResult Spacecraft(const Catalog& catalog, const Mission& m,
     const Part& antenna = catalog.at(design.antenna);
     const Part& computer = catalog.at(design.computer);
 
+    result.busMassLimitKg = bus.maxWetMassKg;
+    result.plannedYears = design.years;
     result.dryKg = bus.massKg;
     result.costMCr = bus.costMCr;
     result.loadW = bus.basePowerW;
@@ -259,8 +264,9 @@ inline SpacecraftResult Spacecraft(const Catalog& catalog, const Mission& m,
     }
     result.generatedGBPerDay = sum(result.working, &Part::dataGBPerDay);
     const double contactS = ground.hoursPerDay * 3600.0 * m.orbitVisible;
-    if (antennaOk)
-        result.downlinkGBPerDay = antenna.dataRateMbps * 1e6 * contactS / 8.0 / 1e9;
+    result.effectiveContactHoursDay = contactS / 3600.0;
+    result.effectiveAntennaMbps = antennaOk ? antenna.dataRateMbps : 0;
+    result.downlinkGBPerDay = result.effectiveAntennaMbps * 1e6 * contactS / 8.0 / 1e9;
     result.requiredStorageGB = result.generatedGBPerDay * ground.maxGapHours / 24.0;
     result.storageGB = computer.storageGB;
     const double storedFraction = result.requiredStorageGB <= result.storageGB
@@ -337,6 +343,7 @@ inline LauncherResult Launcher(const Catalog& catalog, const Mission& m, const L
     const double firstDry = firstTank.massKg + count * firstEngine.massKg + separator.massKg;
     const double secondDry = secondTank.massKg + secondEngine.massKg + separator.massKg;
     const double secondWet = secondDry + secondTank.capacityKg + payloadKg;
+    result.fairingMassLimitKg = fairing.maxPayloadKg;
     result.liftoffKg = firstDry + firstTank.capacityKg + fairing.massKg + secondWet;
     const double firstIsp = (firstEngine.seaLevelIspS + firstEngine.vacuumIspS) / 2.0;
     result.firstDeltaV = DeltaV(firstIsp, result.liftoffKg, result.liftoffKg - firstTank.capacityKg, m.g0);
