@@ -859,7 +859,7 @@ void AOrbitalFlightPlayback::FrameSubject(ACameraActor& Camera, const FVector& F
 	Camera.SetActorRotation(ToFocus.Rotation());
 	const double TanHalf = (SizeM * 100.0 / VerticalFraction / 2.0) * AspectRatio / Distance;
 	const double Needed = FMath::RadiansToDegrees(2.0 * FMath::Atan(TanHalf));
-	Lens->SetFieldOfView(static_cast<float>(FMath::Clamp(Needed, 5.0, static_cast<double>(*Original))));
+	Lens->SetFieldOfView(static_cast<float>(FMath::Clamp(Needed, 14.0, static_cast<double>(*Original))));
 }
 
 void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)

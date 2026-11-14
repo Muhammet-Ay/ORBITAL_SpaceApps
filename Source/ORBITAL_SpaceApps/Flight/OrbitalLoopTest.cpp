@@ -62,8 +62,11 @@ void AOrbitalLoopTestDriver::Next(const TCHAR* What)
 
 void AOrbitalLoopTestDriver::Shot(const TCHAR* Name)
 {
-	FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir() / TEXT("Screenshots/LoopTest") /
-		FString::Printf(TEXT("%s.png"), Name), false, false);
+	if (!FParse::Param(FCommandLine::Get(), TEXT("OrbitalLoopRecord"))) // one screenshot request at a time
+	{
+		FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir() / TEXT("Screenshots/LoopTest") /
+			FString::Printf(TEXT("%s.png"), Name), false, false);
+	}
 }
 
 void AOrbitalLoopTestDriver::Tick(float DeltaSeconds)
@@ -76,8 +79,23 @@ void AOrbitalLoopTestDriver::Tick(float DeltaSeconds)
 	MoonTime = GLoopTestSaved.MoonTime;
 	LiftoffFrames = GLoopTestSaved.LiftoffFrames;
 	MoonFrames = GLoopTestSaved.MoonFrames;
-	StepTime += DeltaSeconds;
+	// -OrbitalLoopRecord: hold the screens longer so they can be read, and save a frame every 0.1 s
+	// (Saved/Screenshots/LoopTest/rec_#####.png) to build the demo video from.
+	static const bool bRecord = FParse::Param(FCommandLine::Get(), TEXT("OrbitalLoopRecord"));
+	static double RecordClock = 0.0;
+	static int32 RecordFrame = 0;
+	StepTime += DeltaSeconds / ((bRecord && Step != 5 && Step != 12) ? 2.5 : 1.0);
 	SinceSkip += DeltaSeconds;
+	if (bRecord && Step < 15)
+	{
+		RecordClock += DeltaSeconds;
+		if (RecordClock >= 0.1)
+		{
+			RecordClock = FMath::Fmod(RecordClock, 0.1);
+			FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir() / TEXT("Screenshots/LoopTest") /
+				FString::Printf(TEXT("rec_%05d.png"), RecordFrame++), false, false);
+		}
+	}
 	AOrbitalGameDirector* Game = Director();
 	UOrbitalGameStateSubsystem* State = Game ? Game->GetState() : nullptr;
 	Orbital::GameFlow* Flow = State ? State->GetFlow() : nullptr;
