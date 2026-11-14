@@ -1,6 +1,7 @@
 #include "OrbitalAssemblyScreenObject.h"
 
-#include "OrbitalBuiltInCatalog.h"
+#include "OrbitalCatalogLoader.h"
+#include "Misc/Paths.h"
 
 namespace
 {
@@ -26,13 +27,25 @@ FOrbitalChangeResult Convert(const Orbital::ChangeResult& In)
 }
 } // namespace
 
-TSharedRef<const FOrbitalAssemblyData> FOrbitalAssemblyData::MakeBuiltIn()
+TSharedPtr<const FOrbitalAssemblyData> FOrbitalAssemblyData::LoadFile(const FString& Filename, FString& OutError)
 {
+	FOrbitalCatalog Catalog;
+	if (!LoadOrbitalCatalog(Filename, Catalog, OutError))
+	{
+		return nullptr;
+	}
 	TSharedRef<FOrbitalAssemblyData> Result = MakeShared<FOrbitalAssemblyData>();
-	Result->Parts = OrbitalData::MakeCatalog();
-	Result->Mission = OrbitalData::MakeMission();
-	Result->Rules = OrbitalData::MakeRules(); // probeRequiresFairing stays false
+	Result->Parts = MoveTemp(Catalog.Parts);
+	Result->Mission = MoveTemp(Catalog.Mission);
+	Result->Rules.socketTree = MoveTemp(Catalog.SocketTree);
+	Result->Rules.defaultOrbit = MoveTemp(Catalog.DefaultOrbit);
+	// Rules.probeRequiresFairing stays false: the probe is assembled independently of the rocket.
 	return Result;
+}
+
+TSharedPtr<const FOrbitalAssemblyData> FOrbitalAssemblyData::LoadFromProject(FString& OutError)
+{
+	return LoadFile(FPaths::Combine(FPaths::ProjectDir(), TEXT("Docs/CLAUDE_RESEARCH/PART_CATALOG.json")), OutError);
 }
 
 void UOrbitalAssemblyScreen::Init(TSharedRef<const FOrbitalAssemblyData> InData)
@@ -46,9 +59,15 @@ void UOrbitalAssemblyScreen::Init(TSharedRef<const FOrbitalAssemblyData> InData)
 	});
 }
 
-void UOrbitalAssemblyScreen::InitBuiltInCatalog()
+bool UOrbitalAssemblyScreen::InitFromProjectCatalog(FString& OutError)
 {
-	Init(FOrbitalAssemblyData::MakeBuiltIn());
+	const TSharedPtr<const FOrbitalAssemblyData> Loaded = FOrbitalAssemblyData::LoadFromProject(OutError);
+	if (!Loaded.IsValid())
+	{
+		return false;
+	}
+	Init(Loaded.ToSharedRef());
+	return true;
 }
 
 TArray<FOrbitalSocketRow> UOrbitalAssemblyScreen::GetSockets(const FString& SelectedPart) const

@@ -92,9 +92,14 @@ void UOrbitalAssemblyDemoSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 		return;
 	}
 	Screen = NewObject<UOrbitalAssemblyScreen>(this);
-	Screen->InitBuiltInCatalog();
 	TArray<FString> Lines;
-	const bool bOk = RunOrbitalAssemblyDemo(*Screen, Lines);
+	FString CatalogError;
+	bool bOk = Screen->InitFromProjectCatalog(CatalogError);
+	if (!bOk)
+	{
+		Lines.Add(FString::Printf(TEXT("[FAIL] Catalog did not load: %s"), *CatalogError));
+	}
+	bOk = bOk && RunOrbitalAssemblyDemo(*Screen, Lines);
 	Lines.Add(bOk ? TEXT("ORBITAL assembly demo: ALL STEPS PASSED") : TEXT("ORBITAL assembly demo: FAILED"));
 	for (int32 Index = Lines.Num() - 1; Index >= 0; --Index)
 	{
@@ -127,9 +132,14 @@ bool FOrbitalAssemblyDemoTest::RunTest(const FString& Parameters)
 	static_cast<void>(Parameters);
 	UOrbitalAssemblyScreen* TestScreen = NewObject<UOrbitalAssemblyScreen>();
 	TestScreen->AddToRoot();
-	TestScreen->InitBuiltInCatalog();
 	TArray<FString> Lines;
-	const bool bOk = RunOrbitalAssemblyDemo(*TestScreen, Lines);
+	FString CatalogError;
+	bool bOk = TestScreen->InitFromProjectCatalog(CatalogError);
+	if (!bOk)
+	{
+		AddError(FString::Printf(TEXT("Catalog did not load: %s"), *CatalogError));
+	}
+	bOk = bOk && RunOrbitalAssemblyDemo(*TestScreen, Lines);
 	TestScreen->RemoveFromRoot();
 	for (const FString& Line : Lines)
 	{
