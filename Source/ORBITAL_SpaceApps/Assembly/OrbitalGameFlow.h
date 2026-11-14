@@ -28,6 +28,42 @@ struct FlowPresets
     std::map<Id, LauncherDesign> launchers;    // reference_builds LV_*
 };
 
+// Power numbers behind the dashboard's single Power row, for the design review panel.
+// States follow the dashboard rule: green needs at least 10% headroom, otherwise amber.
+struct PowerDetail
+{
+    bool available = false; // false until the spacecraft is complete enough to evaluate
+    double usableBatteryWh = 0, eclipseWh = 0;        // battery energy vs energy needed in eclipse
+    double generationW = 0, requiredGenerationW = 0;  // solar output vs load plus recharge
+    double loadW = 0, eclipseMin = 0, periodMin = 0;
+    DashboardState batteryState = DashboardState::Amber, generationState = DashboardState::Amber;
+};
+
+inline constexpr const char* EclipseHint =
+    "Solar panels produce no power in eclipse. The battery must run the systems for that time.";
+
+inline PowerDetail MakePowerDetail(const MissionResult& result)
+{
+    PowerDetail detail;
+    const SpacecraftResult& sc = result.sc;
+    detail.available = sc.dryKg > 0;
+    if (!detail.available)
+        return detail;
+    detail.usableBatteryWh = sc.usableBatteryWh;
+    detail.eclipseWh = sc.eclipseWh;
+    detail.generationW = sc.generationW;
+    detail.requiredGenerationW = sc.requiredGenerationW;
+    detail.loadW = sc.loadW;
+    detail.eclipseMin = sc.eclipseMin;
+    detail.periodMin = sc.periodMin;
+    const auto state = [](double have, double need) {
+        return need > 0 && have >= need * 1.10 ? DashboardState::Green : DashboardState::Amber;
+    };
+    detail.batteryState = state(sc.usableBatteryWh, sc.eclipseWh);
+    detail.generationState = state(sc.generationW, sc.requiredGenerationW);
+    return detail;
+}
+
 class GameFlow
 {
 public:

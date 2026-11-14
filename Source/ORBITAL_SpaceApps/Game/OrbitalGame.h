@@ -20,9 +20,9 @@
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "../Assembly/OrbitalGameFlow.h"
+#include "../Flight/OrbitalFlight.h"
 #include "OrbitalGame.generated.h"
 
-class AOrbitalFlightPlayback;
 class APlayerController;
 class UFont;
 struct FOrbitalAssemblyData;
@@ -99,6 +99,18 @@ public:
 
 private:
 	TArray<FString> WrapText(const FString& Text, float MaxWidth, UFont* Font, float Scale) const;
+};
+
+// Flight HUD used while the game is on: Muhammet's flight HUD (status line, clock, Skip,
+// report) plus a telemetry panel fed by the current timeline event: mission phase,
+// propellant left, battery energy left and data returned to Earth.
+UCLASS()
+class ORBITAL_SPACEAPPS_API AOrbitalGameFlightHUD : public AOrbitalFlightHUD
+{
+	GENERATED_BODY()
+
+public:
+	virtual void DrawHUD() override;
 };
 
 // Spawns the director when a game world begins play on L_Mission, and keeps the

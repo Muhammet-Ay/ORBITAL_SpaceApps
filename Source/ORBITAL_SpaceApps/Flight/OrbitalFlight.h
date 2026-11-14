@@ -81,6 +81,11 @@ public:
 	// Read by the HUD.
 	bool IsPlaying() const { return bPlaying; }
 	bool IsFinished() const { return bFinished; }
+	// Timeline event on screen (null before the first one). Its values feed the flight telemetry panel.
+	const Orbital::TimelineEvent* GetCurrentEvent() const
+	{
+		return CurrentEvent >= 0 && CurrentEvent < static_cast<int32>(Show.size()) ? &Show[CurrentEvent] : nullptr;
+	}
 	const FString& GetStatusMessage() const { return StatusMessage; }
 	const FString& GetStatusDetail() const { return StatusDetail; }
 	const FOrbitalFlightReport& GetReport() const { return Report; }
