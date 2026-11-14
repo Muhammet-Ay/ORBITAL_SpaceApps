@@ -25,7 +25,9 @@
 
 class ACameraActor;
 class APlayerController;
+class UAudioComponent;
 class UFont;
+class USoundBase;
 class UMaterialInterface;
 class UPointLightComponent;
 class USceneComponent;
@@ -114,6 +116,10 @@ private:
 		const FRotator& Rotation, FVector* OutSizeM);
 	static UClass* PartClass(const Orbital::Id& PartId);
 	void FillReport(const Orbital::TimelineEvent& Event);
+	void AddFlames();
+	void SetBurning(bool bStage1, bool bStage2, bool bProbe, bool bQuiet);
+	void PlayOneShot(USoundBase* Sound, float Volume);
+	void UpdateOrbitCamera(APlayerController& Player);
 
 	void ApplyEvent(int32 Index, APlayerController& Player);
 	void SetAttached(FGroup& Group, bool bAttached);
@@ -132,6 +138,12 @@ private:
 	UPROPERTY() TObjectPtr<UPointLightComponent> FillLight;
 	UPROPERTY() TObjectPtr<ACameraActor> ActiveCamera;
 	UPROPERTY() TArray<TObjectPtr<AActor>> PartActors;
+	UPROPERTY() TObjectPtr<UMaterialInterface> FlameMaterial;
+	UPROPERTY() TObjectPtr<USoundBase> EngineSound;
+	UPROPERTY() TObjectPtr<USoundBase> SeparationSound;
+	UPROPERTY() TObjectPtr<USoundBase> ClickSound;
+	UPROPERTY() TObjectPtr<UAudioComponent> EngineAudio;
+	UPROPERTY() TObjectPtr<ACameraActor> OrbitCamera;
 
 	FGroup Stage1, Stage2, Fairing, Probe, Panels;
 	double Stage1TopM = 0, Stage2TopM = 0, ProbeHeightM = 0, ProbeSpanM = 0, FairingHeightM = 0, TotalHeightM = 0;
@@ -155,6 +167,14 @@ private:
 	TMap<TWeakObjectPtr<ACameraActor>, float> OriginalFov;
 
 	FString StatusMessage, StatusDetail;
+
+	UStaticMeshComponent* Stage1Flame = nullptr;
+	UStaticMeshComponent* Stage2Flame = nullptr;
+	UStaticMeshComponent* ProbeFlame = nullptr;
+	FVector FlameBaseScale[3];
+	bool bQuietEvent = false; // several events applied in one frame (Skip): no one-shot sounds for the earlier ones
+	bool bOrbiting = false, bTestOrbitDrag = false;
+	double OrbitYaw = 0, OrbitPitch = 0, OrbitDistanceCm = 0;
 };
 
 // Canvas HUD: status line, mission clock, Skip button and the report screen.

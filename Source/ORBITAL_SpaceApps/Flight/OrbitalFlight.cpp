@@ -5,6 +5,7 @@
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
+#include "Components/AudioComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -16,11 +17,13 @@
 #include "GameFramework/PlayerController.h"
 #include "HAL/IConsoleManager.h"
 #include "InputCoreTypes.h"
+#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 #include "UnrealClient.h"
 
@@ -147,6 +150,16 @@ AOrbitalFlightPlayback::AOrbitalFlightPlayback()
 	CubeMesh = Cube.Object;
 	SphereMesh = Sphere.Object;
 	ShapeMaterial = Material.Object;
+
+	// Optional polish assets. Playback still works if one is missing.
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Flame(TEXT("/Game/Materials/FX/M_Flame.M_Flame"));
+	static ConstructorHelpers::FObjectFinder<USoundBase> Engine(TEXT("/Game/Audio/S_EngineLoop.S_EngineLoop"));
+	static ConstructorHelpers::FObjectFinder<USoundBase> Separation(TEXT("/Game/Audio/S_Separation.S_Separation"));
+	static ConstructorHelpers::FObjectFinder<USoundBase> Click(TEXT("/Game/Audio/S_Click.S_Click"));
+	FlameMaterial = Flame.Object;
+	EngineSound = Engine.Object;
+	SeparationSound = Separation.Object;
+	ClickSound = Click.Object;
 }
 
 USceneComponent* AOrbitalFlightPlayback::MakeGroup(FGroup& Group, const TCHAR* Name, double BottomM)
@@ -578,6 +591,10 @@ bool AOrbitalFlightPlayback::StartFlight(const Orbital::Catalog& Catalog, const 
 	}
 	SetActorLocationAndRotation(PadCm, FRotator::ZeroRotator);
 
+	if (Show.size() > 1)
+	{
+		AddFlames();
+	}
 	bTestMode = FParse::Param(FCommandLine::Get(), TEXT("OrbitalFlightTest"));
 	Report = FOrbitalFlightReport();
 	DisplayNow = 0;
@@ -648,6 +665,7 @@ void AOrbitalFlightPlayback::RequestRedesign()
 		return;
 	}
 	Report.bRedesignRequested = true;
+	PlayOneShot(ClickSound, 0.8f);
 	UE_LOG(LogOrbitalFlight, Display, TEXT("Redesign requested from the report screen (%d listener(s))"),
 		OnRedesignRequested.IsBound() ? 1 : 0);
 	OnRedesignRequested.Broadcast();
@@ -723,6 +741,7 @@ void AOrbitalFlightPlayback::Skip()
 	const double Target = Orbital::SkipTarget(Show, DisplayNow);
 	UE_LOG(LogOrbitalFlight, Display, TEXT("Skip: %.2f s -> %.2f s"), DisplayNow, Target);
 	DisplayNow = FMath::Max(DisplayNow, Target);
+	PlayOneShot(ClickSound, 0.8f);
 }
 
 void AOrbitalFlightPlayback::SetAttached(FGroup& Group, bool bAttached)
@@ -806,6 +825,8 @@ void AOrbitalFlightPlayback::PlaceInFrontOfCamera(const ACameraActor& Camera, co
 {
 	const FVector CameraLocation = Camera.GetActorLocation();
 	const FVector Forward = Camera.GetActorForwardVector(), Right = Camera.GetActorRightVector(), Up = Camera.GetActorUpVector();
+	FocusLocalCm = InFocusLocalCm; // the player camera orbits this point
+	FocusSizeM = SizeM;
 	const double HalfFov = FMath::DegreesToRadians(Camera.GetCameraComponent()->FieldOfView * 0.5);
 	const double TanHalf = FMath::Tan(HalfFov);
 	const double Distance = (SizeM * 100.0 / Fraction / 2.0) / TanHalf;
@@ -846,6 +867,7 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	const Orbital::TimelineEvent& Event = Show[Index];
 	const std::string& Name = Event.event;
 	CurrentEvent = Index;
+	bOrbiting = false; // every event starts on its own camera
 	StatusMessage = FormatStatus(Event, LiftoffTwr);
 	StatusDetail = Name == "MISSION_REPORT" ? ToFString(Event.message) : FString();
 
@@ -958,6 +980,13 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 			}
 		}
 	}
+
+	// Engines: stage 1 from liftoff to separation, stage 2 from its ignition to TLI, probe engine at insertion.
+	SetBurning(bLiftoff, bFairingEvent || bParking, Name == "INSERTION_BURN_START", bQuietEvent);
+	if ((bSeparation || bFairingEvent || bTli) && !bQuietEvent)
+	{
+		PlayOneShot(SeparationSound, 0.9f);
+	}
 }
 
 void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
@@ -1002,6 +1031,7 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 	}
 	while (NextEvent < Count && Show[NextEvent].displayTimeS <= DisplayNow)
 	{
+		bQuietEvent = NextEvent + 1 < Count && Show[NextEvent + 1].displayTimeS <= DisplayNow;
 		ApplyEvent(NextEvent, *Player);
 		++NextEvent;
 	}
@@ -1036,6 +1066,19 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 	{
 		FrameSubject(*ActiveCamera, GetActorTransform().TransformPosition(FocusLocalCm), FocusSizeM, FocusFraction);
 	}
+
+	// Flame flicker.
+	UStaticMeshComponent* Flames[] = {Stage1Flame, Stage2Flame, ProbeFlame};
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		if (Flames[Index] && Flames[Index]->IsVisible())
+		{
+			const double Flicker = 1.0 + 0.10 * FMath::Sin(DisplayNow * 43.0 + Index) + 0.06 * FMath::Sin(DisplayNow * 71.0);
+			Flames[Index]->SetRelativeScale3D(FlameBaseScale[Index] * FVector(1.0, 1.0, Flicker));
+		}
+	}
+	bTestOrbitDrag = bTestMode && CurrentEvent == 3 && DisplayNow - Show[3].displayTimeS > 5.0 && Count > 4;
+	UpdateOrbitCamera(*Player);
 
 	// -OrbitalFlightTest: one screenshot per event, then quit. Used to check a full run unattended.
 	if (bTestMode && CurrentEvent >= 0)
@@ -1094,6 +1137,143 @@ FString AOrbitalFlightPlayback::GetPhaseText() const
 		return FString();
 	}
 	return ToFString(Show[CurrentEvent].phase).ToUpper() + TEXT("  |  ") + ToFString(Show[CurrentEvent].event);
+}
+
+// ---------------------------------------------------------------- flame, sound, player camera
+
+// Bright additive cones under the engines (Content/Materials/FX/M_Flame). Shown only while that engine burns.
+void AOrbitalFlightPlayback::AddFlames()
+{
+	if (!FlameMaterial)
+	{
+		return;
+	}
+	const auto Flame = [&](FGroup& Group, double WidthM, double LengthM) -> UStaticMeshComponent*
+	{
+		if (!Group.Component)
+		{
+			return nullptr;
+		}
+		// Cone turned over: wide end at the engines, tip pointing down.
+		UStaticMeshComponent* Component = AddShape(Group.Component, EShape::Cone, FVector(0, 0, -LengthM / 2.0),
+			FVector(WidthM, WidthM, LengthM), FLinearColor::White, FRotator(0, 0, 180));
+		Component->SetMaterial(0, FlameMaterial);
+		Component->SetCastShadow(false);
+		Component->SetVisibility(false);
+		return Component;
+	};
+	Stage1Flame = Flame(Stage1, 2.6, 16.0);
+	Stage2Flame = Flame(Stage2, 1.2, 7.0);
+	ProbeFlame = Flame(Probe, 0.3, 1.4);
+	FlameBaseScale[0] = FVector(2.6, 2.6, 16.0);
+	FlameBaseScale[1] = FVector(1.2, 1.2, 7.0);
+	FlameBaseScale[2] = FVector(0.3, 0.3, 1.4);
+}
+
+void AOrbitalFlightPlayback::SetBurning(bool bStage1, bool bStage2, bool bProbe, bool bQuiet)
+{
+	UStaticMeshComponent* Flames[] = {Stage1Flame, Stage2Flame, ProbeFlame};
+	const bool bOn[] = {bStage1, bStage2, bProbe};
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		if (Flames[Index])
+		{
+			Flames[Index]->SetVisibility(bOn[Index]);
+		}
+	}
+	const bool bAny = bStage1 || bStage2 || bProbe;
+	if (!EngineAudio && EngineSound && bAny && !bQuiet)
+	{
+		EngineAudio = UGameplayStatics::CreateSound2D(this, EngineSound, 1.0f, 1.0f, 0.0f, nullptr, false, false);
+	}
+	if (EngineAudio)
+	{
+		if (bAny && !bQuiet)
+		{
+			EngineAudio->SetVolumeMultiplier(bStage1 ? 0.9f : bStage2 ? 0.5f : 0.3f);
+			EngineAudio->SetPitchMultiplier(bStage1 ? 1.0f : bStage2 ? 1.25f : 1.6f);
+			if (!EngineAudio->IsPlaying())
+			{
+				EngineAudio->Play();
+			}
+		}
+		else if (EngineAudio->IsPlaying())
+		{
+			EngineAudio->FadeOut(0.6f, 0.0f);
+		}
+	}
+}
+
+void AOrbitalFlightPlayback::PlayOneShot(USoundBase* Sound, float Volume)
+{
+	if (Sound)
+	{
+		UGameplayStatics::PlaySound2D(this, Sound, Volume);
+	}
+}
+
+// Player camera: hold the right mouse button and drag to orbit the vehicle, wheel to zoom.
+// The next timeline event returns to its own camera.
+void AOrbitalFlightPlayback::UpdateOrbitCamera(APlayerController& Player)
+{
+	if (Report.bVisible || Mode == EMode::Idle || !ActiveCamera)
+	{
+		bOrbiting = false;
+		return;
+	}
+	const bool bDrag = Player.IsInputKeyDown(EKeys::RightMouseButton) || bTestOrbitDrag;
+	const double Wheel = (Player.WasInputKeyJustPressed(EKeys::MouseScrollUp) ? 1.0 : 0.0)
+		- (Player.WasInputKeyJustPressed(EKeys::MouseScrollDown) ? 1.0 : 0.0);
+	const FVector Focus = GetActorTransform().TransformPosition(FocusLocalCm);
+	const double MinDistance = FocusSizeM * 100.0 * 0.9, MaxDistance = FocusSizeM * 100.0 * 40.0;
+	if (!bOrbiting && (bDrag || Wheel != 0.0))
+	{
+		// Start from where the event camera is, so the view does not jump.
+		const FVector Offset = ActiveCamera->GetActorLocation() - Focus;
+		const FRotator Direction = Offset.Rotation();
+		OrbitYaw = Direction.Yaw;
+		OrbitPitch = Direction.Pitch;
+		OrbitDistanceCm = FMath::Clamp(Offset.Size(), MinDistance, MaxDistance);
+		if (!OrbitCamera && GetWorld())
+		{
+			OrbitCamera = GetWorld()->SpawnActor<ACameraActor>();
+		}
+		if (!OrbitCamera)
+		{
+			return;
+		}
+		UCameraComponent* Lens = OrbitCamera->GetCameraComponent();
+		Lens->SetConstraintAspectRatio(false);
+		Lens->SetFieldOfView(ActiveCamera->GetCameraComponent()->FieldOfView);
+		Lens->PostProcessBlendWeight = 1.0f;
+		Lens->PostProcessSettings.bOverride_AutoExposureBias = true;
+		Lens->PostProcessSettings.AutoExposureBias = CVarOrbitalFlightExposure.GetValueOnGameThread();
+		Player.SetViewTargetWithBlend(OrbitCamera, 0.0f);
+		bOrbiting = true;
+		UE_LOG(LogOrbitalFlight, Display, TEXT("Player camera: orbit started at %.0f m"), OrbitDistanceCm / 100.0);
+	}
+	if (!bOrbiting || !OrbitCamera)
+	{
+		return;
+	}
+	if (bDrag)
+	{
+		float DeltaX = 0.0f, DeltaY = 0.0f;
+		Player.GetInputMouseDelta(DeltaX, DeltaY);
+		if (bTestOrbitDrag)
+		{
+			DeltaX = 0.5f;
+			DeltaY = 0.1f;
+		}
+		OrbitYaw += DeltaX * 2.0;
+		OrbitPitch = FMath::Clamp(OrbitPitch + DeltaY * 2.0, -85.0, 85.0);
+	}
+	if (Wheel != 0.0)
+	{
+		OrbitDistanceCm = FMath::Clamp(OrbitDistanceCm * (Wheel > 0 ? 0.85 : 1.0 / 0.85), MinDistance, MaxDistance);
+	}
+	const FVector Location = Focus + FRotator(OrbitPitch, OrbitYaw, 0.0).Vector() * OrbitDistanceCm;
+	OrbitCamera->SetActorLocationAndRotation(Location, (Focus - Location).Rotation());
 }
 
 // ---------------------------------------------------------------- HUD
@@ -1171,6 +1351,8 @@ void AOrbitalFlightHUD::DrawHUD()
 		ClockHeight + PhaseHeight + 22.0f * Unit);
 	DrawText(Clock, FLinearColor::White, InfoX, InfoY, Font, TextScale);
 	DrawText(Phase, FLinearColor(0.7f, 0.85f, 1.0f), InfoX, InfoY + ClockHeight + 6.0f * Unit, Font, SmallScale);
+	DrawText(TEXT("Right mouse: orbit   Wheel: zoom"), FLinearColor(0.75f, 0.75f, 0.75f), InfoX,
+		InfoY + ClockHeight + PhaseHeight + 30.0f * Unit, Font, SmallScale * 0.9f);
 
 	// Skip button, bottom right above the status line.
 	if (!Flight->IsFinished())
