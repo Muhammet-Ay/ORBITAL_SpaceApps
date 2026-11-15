@@ -3,6 +3,7 @@
 #include "../Assembly/OrbitalAssemblyScreenObject.h"
 #include "../Flight/OrbitalFlight.h"
 #include "../OrbitalCatalogLoader.h"
+#include "OrbitalLanguage.h"
 #include "AudioDevice.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -515,6 +516,11 @@ void AOrbitalGameDirector::HandleAction(const FString& Action)
 		State->SetVolumePercent(State->GetVolumePercent() + FCString::Atoi(*Argument), GetWorld());
 		return;
 	}
+	if (Kind == TEXT("l"))
+	{
+		OrbitalSetTurkish(Argument == TEXT("tr"));
+		return;
+	}
 	if (Kind == TEXT("q"))
 	{
 		State->SetQuality(FCString::Atoi(*Argument));
@@ -802,10 +808,20 @@ void AOrbitalGameDirector::UpdatePreview(APlayerController& Player, Orbital::Gam
 
 // ---------------------------------------------------------------- assembly screen
 
+void AOrbitalAssemblyHUD::DrawText(const FString& Text, FLinearColor Color, float X, float Y, UFont* Font, float Scale, bool bScalePosition)
+{
+	AHUD::DrawText(OrbitalTr(Text), Color, X, Y, Font, Scale, bScalePosition);
+}
+
+void AOrbitalAssemblyHUD::GetTextSize(const FString& Text, float& OutWidth, float& OutHeight, UFont* Font, float Scale) const
+{
+	AHUD::GetTextSize(OrbitalTr(Text), OutWidth, OutHeight, Font, Scale);
+}
+
 TArray<FString> AOrbitalAssemblyHUD::WrapText(const FString& Text, float MaxWidth, UFont* Font, float Scale) const
 {
 	TArray<FString> Lines, Words;
-	Text.ParseIntoArray(Words, TEXT(" "));
+	OrbitalTr(Text).ParseIntoArray(Words, TEXT(" ")); // translate the whole text first, then wrap it
 	FString Line;
 	for (const FString& Word : Words)
 	{
@@ -1356,6 +1372,9 @@ bool AOrbitalAssemblyHUD::DrawMenu(UOrbitalGameStateSubsystem& State, float Widt
 		MenuButton(TEXT("Settings"), X, FirstY + Step, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:settings"), Font, HeadScale * 0.8f);
 		MenuButton(TEXT("Credits"), X, FirstY + Step * 2.0f, ButtonWidth, ButtonHeight, ButtonColor, TEXT("n:credits"), Font, HeadScale * 0.8f);
 		MenuButton(TEXT("Quit"), X, FirstY + Step * 3.0f, ButtonWidth, ButtonHeight, FLinearColor(0.30f, 0.30f, 0.34f, 0.95f), TEXT("n:quit"), Font, HeadScale * 0.8f);
+		// Language switch, also in Settings.
+		MenuButton(OrbitalIsTurkish() ? FString(TEXT("English")) : FString(TEXT("T\u00FCrk\u00E7e")), Width * 0.86f, Height * 0.05f,
+			Width * 0.10f, ButtonHeight * 0.8f, ButtonColor, OrbitalIsTurkish() ? TEXT("l:en") : TEXT("l:tr"), Font, Scale);
 		Centered(TEXT("NASA Space Apps Challenge 2026  |  Team Three-Body Problem."), Dim, Height * 0.90f, Scale * 0.85f);
 		return true;
 	}
@@ -1468,8 +1487,18 @@ bool AOrbitalAssemblyHUD::DrawMenu(UOrbitalGameStateSubsystem& State, float Widt
 		MenuButton(Levels[Index], ControlX + Index * (LevelWidth + Gap), Y, LevelWidth, ButtonHeight, bOn ? ButtonOn : ButtonColor,
 			bOn ? FString() : FString::Printf(TEXT("q:%d"), Index), Font, Scale);
 	}
-	Y += ButtonHeight * 1.6f;
+	Y += ButtonHeight * 1.1f;
 	DrawText(TEXT("Lower the quality if the flight view stutters on your computer."), Dim, Left, Y, Font, Scale * 0.9f);
+	Y += ButtonHeight * 1.0f;
+	DrawText(TEXT("Language:"), FLinearColor::White, Left, Y + ButtonHeight * 0.25f, Font, Scale);
+	{
+		const bool bTurkish = OrbitalIsTurkish();
+		const float LanguageWidth = Width * 0.12f;
+		MenuButton(TEXT("English"), ControlX, Y, LanguageWidth, ButtonHeight, bTurkish ? ButtonColor : ButtonOn,
+			bTurkish ? FString(TEXT("l:en")) : FString(), Font, Scale);
+		MenuButton(FString(TEXT("T\u00FCrk\u00E7e")), ControlX + LanguageWidth + Gap, Y, LanguageWidth, ButtonHeight,
+			bTurkish ? ButtonOn : ButtonColor, bTurkish ? FString() : FString(TEXT("l:tr")), Font, Scale);
+	}
 	MenuButton(TEXT("Back"), Width * 0.05f, Height * 0.86f, Width * 0.14f, ButtonHeight, ButtonColor, TEXT("n:menu"), Font, Scale);
 	return true;
 }
