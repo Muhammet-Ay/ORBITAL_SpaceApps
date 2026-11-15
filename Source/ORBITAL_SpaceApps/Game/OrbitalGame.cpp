@@ -1118,7 +1118,7 @@ bool AOrbitalAssemblyHUD::DrawMenu(UOrbitalGameStateSubsystem& State, float Widt
 			{TEXT("Ram: engineering integration, JSON loader, dashboard, session flow and documentation."), 0},
 			{TEXT(""), 2},
 			{TEXT("NOTES"), 1},
-			{TEXT("Sounds were generated for this project. They are not NASA recordings."), 0},
+			{TEXT("Launch sounds: NASA Historical Sounds (Atlas V: Launch, SLS Test Fire). Other sounds were generated for this project."), 0},
 			{TEXT("The team used Claude, ChatGPT/Codex and Gemini to help write code, tests, documentation and UI text, and directed and reviewed that work."), 0},
 			{TEXT("ORBITAL uses a simplified educational model. Its estimates are unsuitable for real flight planning."), 0},
 		};

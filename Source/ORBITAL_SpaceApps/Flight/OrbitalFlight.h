@@ -142,6 +142,10 @@ private:
 	UPROPERTY() TObjectPtr<USoundBase> EngineSound;
 	UPROPERTY() TObjectPtr<USoundBase> SeparationSound;
 	UPROPERTY() TObjectPtr<USoundBase> ClickSound;
+	// NASA recording played once when the first stage ignites; null if it has not been imported.
+	UPROPERTY() TObjectPtr<USoundBase> IgnitionSound;
+	bool bNasaSoundsChecked = false;
+	bool bStage1Burning = false;
 	UPROPERTY() TObjectPtr<UAudioComponent> EngineAudio;
 	UPROPERTY() TObjectPtr<ACameraActor> OrbitCamera;
 

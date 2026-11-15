@@ -1181,6 +1181,26 @@ void AOrbitalFlightPlayback::SetBurning(bool bStage1, bool bStage2, bool bProbe,
 			Flames[Index]->SetVisibility(bOn[Index]);
 		}
 	}
+	// NASA recordings (Content/Audio/NASA, sources in Docs/CHALLENGE_TRACEABILITY.md) replace the
+	// synthesized engine loop and add an ignition sound. If they have not been imported, the
+	// synthesized sounds stay in use, so the flight works either way.
+	if (!bNasaSoundsChecked)
+	{
+		bNasaSoundsChecked = true;
+		if (USoundBase* NasaEngine = LoadObject<USoundBase>(nullptr,
+			TEXT("/Game/Audio/NASA/S_NASA_EngineLoop.S_NASA_EngineLoop"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			EngineSound = NasaEngine;
+		}
+		IgnitionSound = LoadObject<USoundBase>(nullptr,
+			TEXT("/Game/Audio/NASA/S_NASA_Ignition.S_NASA_Ignition"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	}
+	if (bStage1 && !bStage1Burning && !bQuiet)
+	{
+		PlayOneShot(IgnitionSound, 1.0f);
+	}
+	bStage1Burning = bStage1;
+
 	const bool bAny = bStage1 || bStage2 || bProbe;
 	if (!EngineAudio && EngineSound && bAny && !bQuiet)
 	{
