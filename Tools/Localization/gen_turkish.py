@@ -101,8 +101,8 @@ for en, tr in {
     "TEAM THREE-BODY PROBLEM.": "THREE-BODY PROBLEM. TAKIMI",
     "Muhammet: Unreal project setup, scene, lighting, flight view and submission materials.":
         "Muhammet: Unreal proje kurulumu, sahne, ışıklandırma, uçuş görünümü ve teslim materyalleri.",
-    "Isa: vehicle assembly, game screens and mission timeline.":
-        "Isa: araç montajı, oyun ekranları ve görev zaman çizelgesi.",
+    "Issa: team leader, game design, vehicle assembly, game screens and mission timeline.":
+        "Issa: takım lideri, oyun tasarımı, araç montajı, oyun ekranları ve görev zaman çizelgesi.",
     "Ram: engineering integration, JSON loader, dashboard, session flow and documentation.":
         "Ram: mühendislik entegrasyonu, JSON yükleyici, gösterge paneli, oturum akışı ve dokümantasyon.",
     "NOTES": "NOTLAR",

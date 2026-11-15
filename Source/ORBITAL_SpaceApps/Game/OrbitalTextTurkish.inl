@@ -118,7 +118,7 @@
 {L"Credit: NASA", L"Kaynak: NASA"},
 {L"TEAM THREE-BODY PROBLEM.", L"THREE-BODY PROBLEM. TAKIMI"},
 {L"Muhammet: Unreal project setup, scene, lighting, flight view and submission materials.", L"Muhammet: Unreal proje kurulumu, sahne, \u0131\u015F\u0131kland\u0131rma, u\u00E7u\u015F g\u00F6r\u00FCn\u00FCm\u00FC ve teslim materyalleri."},
-{L"Isa: vehicle assembly, game screens and mission timeline.", L"Isa: ara\u00E7 montaj\u0131, oyun ekranlar\u0131 ve g\u00F6rev zaman \u00E7izelgesi."},
+{L"Issa: team leader, game design, vehicle assembly, game screens and mission timeline.", L"Issa: tak\u0131m lideri, oyun tasar\u0131m\u0131, ara\u00E7 montaj\u0131, oyun ekranlar\u0131 ve g\u00F6rev zaman \u00E7izelgesi."},
 {L"Ram: engineering integration, JSON loader, dashboard, session flow and documentation.", L"Ram: m\u00FChendislik entegrasyonu, JSON y\u00FCkleyici, g\u00F6sterge paneli, oturum ak\u0131\u015F\u0131 ve dok\u00FCmantasyon."},
 {L"NOTES", L"NOTLAR"},
 {L"Launch sounds: NASA Historical Sounds (Atlas V: Launch, SLS Test Fire). Other sounds were generated for this project.", L"F\u0131rlatma sesleri: NASA Historical Sounds (Atlas V: Launch, SLS Test Fire). Di\u011Fer sesler bu proje i\u00E7in \u00FCretildi."},
