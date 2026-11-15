@@ -20,12 +20,12 @@ SOCKETS = {
     "Stage 2 tank": "2. kademe tankı", "Stage 2 engine": "2. kademe motoru",
     "Fairing": "Kaporta", "Spacecraft bus": "Uzay aracı gövdesi", "Propellant tank": "Yakıt tankı",
     "Spacecraft engine": "Uzay aracı motoru", "Attitude control": "Yönelim kontrolü",
-    "Solar array": "Güneş paneli", "Battery": "Batarya", "Antenna": "Anten", "Computer": "Bilgisayar",
+    "Power source": "Güç kaynağı", "Battery": "Batarya", "Antenna": "Anten", "Computer": "Bilgisayar",
     "Instrument deck": "Alet yuvası",
 }
 for en, tr in SOCKETS.items():
     add(en, tr)
-for en in ("Propellant tank", "Attitude control", "Solar array", "Battery", "Instrument deck"):
+for en in ("Propellant tank", "Attitude control", "Power source", "Battery", "Instrument deck"):
     add(en + " 7", SOCKETS[en] + " 7")
 
 for en, tr in {
@@ -160,6 +160,11 @@ for en, tr in {
     "ATTITUDE": "YÖNELİM", "Nose above horizon: 67 deg": "Burnun ufka göre açısı: 67 derece",
     "Altitude": "İrtifa", "Vertical climb": "Dikey tırmanış", "Gravity turn": "Yerçekimi dönüşü",
     "Nearly level, gaining speed": "Neredeyse yatay, hız kazanıyor",
+    # Pluto power test
+    "Pluto Probe: Power Test": "Plüton Sondası: Güç Testi",
+    "Pluto gets 1/1560 of Earth's sunlight, so solar arrays are useless there. Prove the probe's power system in lunar orbit with sunlight dimmed to Pluto's level. You will need an RTG.":
+        "Plüton, Dünya'ya ulaşan güneş ışığının 1/1560'ını alır; orada güneş panelleri işe yaramaz. Sondanın güç sistemini, güneş ışığı Plüton düzeyine kısılmış halde Ay yörüngesinde kanıtlayın. Bir RTG gerekecek.",
+    "Sunlight: 1/1560 of Earth's": "Güneş ışığı: Dünya'dakinin 1/1560'ı",
     # flight view and report
     "Right mouse: orbit": "Sağ fare: çevir", "Wheel: zoom": "Tekerlek: yakınlaştır", "Skip  >>": "Geç  >>",
     "Phase reached": "Ulaşılan aşama", "Score: 1.5": "Puan: 1.5", "Science: 2.5": "Bilim: 2.5",
@@ -210,7 +215,7 @@ NAMES = {
     "sc_tank_s": "Yakıt Tankı S", "sc_tank_m": "Yakıt Tankı M", "sc_tank_l": "Yakıt Tankı L",
     "sc_engine_mono": "Tek Yakıtlı Motor", "sc_engine_biprop": "Çift Yakıtlı Motor",
     "rcs": "RCS İticileri", "reaction_wheels": "Tepki Tekeri Seti",
-    "solar_s": "Güneş Paneli S", "solar_l": "Güneş Paneli L", "battery_s": "Batarya S", "battery_l": "Batarya L",
+    "rtg": "Radyoizotop Jeneratörü (RTG)", "solar_s": "Güneş Paneli S", "solar_l": "Güneş Paneli L", "battery_s": "Batarya S", "battery_l": "Batarya L",
     "antenna_lga": "Düşük Kazançlı Anten", "antenna_mga": "Orta Kazançlı Anten",
     "antenna_hga": "Yüksek Kazançlı Anten", "obc_basic": "Araç Bilgisayarı (Temel)",
     "obc_advanced": "Araç Bilgisayarı (Gelişmiş)", "inst_neutron": "Nötron Spektrometresi",
@@ -240,6 +245,7 @@ TIPS = {
     "solar_l": "Güneş ışığında daha fazla elektrik sağlayan daha büyük bir güneş paneli.",
     "battery_s": "Gölgede uzay aracı sistemlerini çalışır tutan küçük bir batarya.",
     "battery_l": "Gölgede geçen süre için daha fazla enerji depolayan daha büyük bir batarya.",
+    "rtg": "Bozunan plütonyumun ısısından, güneşte de gölgede de yaklaşık 200 W üretir. Ağır ve çok pahalıdır.",
     "antenna_lga": "Veriyi yavaş gönderir, uzay aracı hangi yöne bakarsa baksın çalışır.",
     "antenna_mga": "Kaba yönelimle orta hızda veri gönderir.",
     "antenna_hga": "Veriyi hızlı gönderir ama hassas yönelim için Tepki Tekeri Seti gerektirir.",

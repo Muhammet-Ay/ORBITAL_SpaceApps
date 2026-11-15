@@ -69,7 +69,7 @@ static FString OrbitalSocketTitle(const Orbital::Id& Socket, int32 Index)
 		{"stage2-tank", TEXT("Stage 2 tank"), false}, {"stage2-engine", TEXT("Stage 2 engine"), false},
 		{"fairing", TEXT("Fairing"), false}, {"probe-core", TEXT("Spacecraft bus"), false},
 		{"probe-tank", TEXT("Propellant tank"), true}, {"probe-engine", TEXT("Spacecraft engine"), false},
-		{"adcs", TEXT("Attitude control"), true}, {"solar", TEXT("Solar array"), true},
+		{"adcs", TEXT("Attitude control"), true}, {"solar", TEXT("Power source"), true},
 		{"battery", TEXT("Battery"), true}, {"antenna", TEXT("Antenna"), false},
 		{"avionics", TEXT("Computer"), false}, {"instrument", TEXT("Instrument deck"), true},
 	};
@@ -678,7 +678,7 @@ void AOrbitalGameDirector::BeginFlight()
 	const Orbital::SessionLaunch& Shot = *Flow->LaunchSnapshot();
 	ClearPreview();
 	Flight = World->SpawnActor<AOrbitalFlightPlayback>();
-	if (!Flight || !Flight->StartFlight(Data->Parts, Data->Mission, Shot.design.spacecraft, Shot.design.launcher, Shot.result))
+	if (!Flight || !Flight->StartFlight(Data->Parts, Flow->Rules(), Shot.design.spacecraft, Shot.design.launcher, Shot.result))
 	{
 		UE_LOG(LogOrbitalGame, Error, TEXT("The flight view did not start; returning to assembly."));
 		Flight = nullptr;
@@ -1737,6 +1737,11 @@ bool AOrbitalAssemblyHUD::DrawMenu(UOrbitalGameStateSubsystem& State, float Widt
 				if (Budget != Data->Mission.budgets.end())
 				{
 					DrawText(FString::Printf(TEXT("Budget: %s M credits"), *OrbitalNumber(Budget->second)), Accent, X + Inset, Y, Font, Scale);
+				}
+				if (Card.sunlight < 1.0)
+				{
+					Y += RowHeight;
+					DrawText(FString::Printf(TEXT("Sunlight: 1/%.0f of Earth's"), 1.0 / Card.sunlight), Accent, X + Inset, Y, Font, Scale);
 				}
 				MenuButton(TEXT("Start"), X + Inset, CardTop + CardHeight - ButtonHeight - Inset, CardWidth - Inset * 2.0f, ButtonHeight,
 					ButtonOn, FString(TEXT("k:")) + OrbitalGameText(Card.id), Font, Scale * 1.2f);

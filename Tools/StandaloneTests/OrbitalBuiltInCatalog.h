@@ -22,6 +22,7 @@ inline Catalog MakeCatalog(){ Catalog c;
  {Part p; p.slot="solar"; p.objective=""; p.massKg=20.0; p.costMCr=7.0; p.areaM2=4.0; p.needsFinePointing=false; p.fitsBus={}; p.missionModes={"uncrewed","crewed"}; c.emplace("solar_l",p);}
  {Part p; p.slot="battery"; p.objective=""; p.massKg=4.0; p.costMCr=1.0; p.capacityWh=400.0; p.needsFinePointing=false; p.fitsBus={}; p.missionModes={"uncrewed","crewed"}; c.emplace("battery_s",p);}
  {Part p; p.slot="battery"; p.objective=""; p.massKg=14.0; p.costMCr=3.0; p.capacityWh=1600.0; p.needsFinePointing=false; p.fitsBus={}; p.missionModes={"uncrewed","crewed"}; c.emplace("battery_l",p);}
+ {Part p; p.slot="solar"; p.objective=""; p.massKg=57.0; p.costMCr=95.0; p.steadyPowerW=200.0; p.needsFinePointing=false; p.fitsBus={}; p.missionModes={"uncrewed","crewed"}; c.emplace("rtg",p);}
  {Part p; p.slot="antenna"; p.objective=""; p.massKg=1.5; p.costMCr=1.0; p.powerW=6.0; p.dataRateMbps=0.016; p.needsFinePointing=false; p.fitsBus={}; p.missionModes={"uncrewed","crewed"}; c.emplace("antenna_lga",p);}
  {Part p; p.slot="antenna"; p.objective=""; p.massKg=6.0; p.costMCr=4.0; p.powerW=22.0; p.dataRateMbps=0.5; p.needsFinePointing=false; p.fitsBus={}; p.missionModes={"uncrewed","crewed"}; c.emplace("antenna_mga",p);}
  {Part p; p.slot="antenna"; p.objective=""; p.massKg=21.0; p.costMCr=15.0; p.powerW=60.0; p.dataRateMbps=20.0; p.needsFinePointing=true; p.fitsBus={}; p.missionModes={"uncrewed","crewed"}; c.emplace("antenna_hga",p);}

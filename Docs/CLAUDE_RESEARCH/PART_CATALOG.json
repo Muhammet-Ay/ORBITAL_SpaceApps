@@ -478,6 +478,22 @@
    ]
   },
   {
+   "id": "rtg",
+   "name": "Radioisotope Generator (RTG)",
+   "category": "solar",
+   "description": "Makes about 200 W from the heat of decaying plutonium, in sunlight or shadow. Heavy and very expensive.",
+   "mass_kg": 57,
+   "cost_mcr": 95,
+   "steady_power_w": 200,
+   "value_basis": "gameplay_assumption",
+   "slot": "solar",
+   "visual": "rtg",
+   "mission_modes": [
+    "uncrewed",
+    "crewed"
+   ]
+  },
+  {
    "id": "antenna_lga",
    "name": "Low-Gain Antenna",
    "category": "antenna",

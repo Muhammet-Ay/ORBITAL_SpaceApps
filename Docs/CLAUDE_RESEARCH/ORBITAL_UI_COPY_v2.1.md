@@ -48,6 +48,7 @@
 | solar_l | A larger solar array that supplies more electricity in sunlight. |
 | battery_s | A small battery that keeps spacecraft systems powered in shadow. |
 | battery_l | A larger battery that stores more energy for time spent in shadow. |
+| rtg | Makes about 200 W from the heat of decaying plutonium, in sunlight or in shadow. Heavy and very expensive. |
 | antenna_lga | Sends data slowly and works at any spacecraft orientation. |
 | antenna_mga | Sends data at a moderate rate with coarse aiming. |
 | antenna_hga | Sends data quickly but needs a Reaction Wheel Set for precise aiming. |

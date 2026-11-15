@@ -244,6 +244,26 @@ USceneComponent* AOrbitalFlightPlayback::MakeGroup(FGroup& Group, const TCHAR* N
 	return Component;
 }
 
+double AOrbitalFlightPlayback::AddRtg(USceneComponent* Parent, const FVector& RootM, const FVector& Outward)
+{
+	const FVector Axis = Outward.GetSafeNormal(UE_SMALL_NUMBER, FVector::RightVector);
+	const FQuat Along = FRotationMatrix::MakeFromZ(Axis).ToQuat(); // the shapes' long axis is Z
+	const double BoomM = 0.7, BodyM = 1.1, BodyDia = 0.36, FinDeep = 0.26;
+	const FLinearColor Boom(0.55f, 0.56f, 0.58f), Body(0.13f, 0.13f, 0.14f), Fin(0.04f, 0.04f, 0.05f), Cap(0.75f, 0.35f, 0.12f);
+	AddShape(Parent, EShape::Cylinder, RootM + Axis * (BoomM / 2.0), FVector(0.08, 0.08, BoomM), Boom, Along.Rotator());
+	const FVector Centre = RootM + Axis * (BoomM + BodyM / 2.0);
+	AddShape(Parent, EShape::Cylinder, Centre, FVector(BodyDia, BodyDia, BodyM), Body, Along.Rotator());
+	AddShape(Parent, EShape::Cylinder, RootM + Axis * (BoomM + BodyM + 0.03), FVector(BodyDia * 0.8, BodyDia * 0.8, 0.06), Cap, Along.Rotator());
+	for (int32 Index = 0; Index < 8; ++Index)
+	{
+		// Cooling fins stand out from the body, evenly spaced around it.
+		const FQuat Turn = Along * FQuat(FVector::UpVector, FMath::DegreesToRadians(Index * 45.0));
+		const FVector Out = Turn.RotateVector(FVector::RightVector);
+		AddShape(Parent, EShape::Box, Centre + Out * (BodyDia / 2.0 + FinDeep / 2.0), FVector(0.025, FinDeep, BodyM * 0.9), Fin, Turn.Rotator());
+	}
+	return BoomM + BodyM + 0.1;
+}
+
 UStaticMeshComponent* AOrbitalFlightPlayback::AddShape(USceneComponent* Parent, EShape Shape,
 	const FVector& CenterM, const FVector& SizeM, const FLinearColor& Color, const FRotator& Rotation)
 {
@@ -359,6 +379,13 @@ void AOrbitalFlightPlayback::BuildVehicle(const Orbital::Catalog& Catalog,
 		const double Length = FMath::Max(0.5, Panel ? Panel->areaM2 : 1.5); // 1 m wide wing
 		const double Side = Index % 2 == 0 ? 1.0 : -1.0;
 		const double PanelZ = BusBottom + BusSize.Z / 2.0;
+		if (Spacecraft.solar[Index] == "rtg")
+		{
+			const FVector Outward = Index < 2 ? FVector(0, Side, 0) : FVector(Side, 0, 0);
+			const double HalfBus = Index < 2 ? BusSize.Y / 2.0 : BusSize.X / 2.0;
+			LongestPanel = FMath::Max(LongestPanel, AddRtg(PanelRoot, Outward * HalfBus + FVector(0, 0, PanelZ), Outward));
+			continue;
+		}
 		LongestPanel = FMath::Max(LongestPanel, Length);
 		if (Index < 2)
 		{
@@ -443,7 +470,7 @@ bool AOrbitalFlightPlayback::BuildVehicleFromParts(const Orbital::SpacecraftDesi
 	}
 	for (const Orbital::Id& Id : Needed)
 	{
-		if (!Id.empty() && !PartClass(Id))
+		if (!Id.empty() && Id != "rtg" && !PartClass(Id)) // the RTG is modelled in code, see AddRtg
 		{
 			UE_LOG(LogOrbitalFlight, Warning, TEXT("No part Blueprint /Game/Parts/BP_%s; using basic shapes"), *ToFString(Id));
 			return false;
@@ -605,6 +632,11 @@ bool AOrbitalFlightPlayback::BuildVehicleFromParts(const Orbital::SpacecraftDesi
 		{
 			Location = SideFallback[Index] + FVector(0, 0, BaseZ + BusSize.Z / 2.0);
 			Rotation = FRotator(0, SideYaw[Index], 0);
+		}
+		if (Sc.solar[Index] == "rtg")
+		{
+			LongestPanel = FMath::Max(LongestPanel, AddRtg(PanelRoot, Location, Rotation.RotateVector(FVector::RightVector)));
+			continue;
 		}
 		SpawnPart(Sc.solar[Index], PanelRoot, Location - FVector(0, 0, 0.5), Rotation, &Size); // wing is 1 m wide
 		LongestPanel = FMath::Max(LongestPanel, Size.Y);

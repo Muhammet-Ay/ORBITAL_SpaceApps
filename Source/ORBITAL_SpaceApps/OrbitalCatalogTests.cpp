@@ -20,7 +20,7 @@ bool FOrbitalCatalogParity::RunTest(const FString& Parameters)
         AddError(Error);
         return false;
     }
-    TestEqual(TEXT("v2.1 catalog part count"), static_cast<int32>(Data.Parts.size()), 38);
+    TestEqual(TEXT("v2.1 catalog part count"), static_cast<int32>(Data.Parts.size()), 39);
     const auto Mono = Data.Parts.find("sc_engine_mono");
     const auto Biprop = Data.Parts.find("sc_engine_biprop");
     TestTrue(TEXT("Monopropellant engine loads thrust_n in newtons"),

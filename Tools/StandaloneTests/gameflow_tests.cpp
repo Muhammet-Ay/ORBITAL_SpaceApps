@@ -131,8 +131,8 @@ void MissionMenu()
 {
     std::printf("main menu mission cards\n");
     const std::vector<MissionCard> cards = MissionCards();
-    CHECK(cards.size() == 3 && cards[0].title == "Ice Prospector" && cards[1].title == "Landing Site Scout" && cards[2].title == "Full Polar Survey");
-    const double budgets[] = {310.0, 360.0, 420.0};
+    CHECK(cards.size() == 4 && cards[0].title == "Ice Prospector" && cards[1].title == "Landing Site Scout" && cards[2].title == "Full Polar Survey");
+    const double budgets[] = {310.0, 360.0, 420.0, 420.0};
     for (std::size_t i = 0; i < cards.size(); ++i)
     {
         GameFlow flow = NewFlow();
@@ -153,10 +153,54 @@ void MissionMenu()
     CHECK(!flow.StartMission(bad) && flow.Primary() == "O4_IMAGING");
     CHECK(flow.RequestLaunch() == LaunchAnswer::NeedsConfirmation && !flow.StartMission(cards[0])); // not while the review is open
 }
+
+bool HasRisk(const GameFlow& flow, const char* code)
+{ for (const auto& r : flow.Preview().risk) if (r == code) return true; return false; }
+
+void RtgAndPluto()
+{
+    std::printf("RTG: steady power in shadow; Pluto power test needs it\n");
+    const std::vector<MissionCard> cards = MissionCards();
+    CHECK(cards.size() == 4 && cards[3].id == "pluto_power" && std::fabs(1.0 / cards[3].sunlight - 1560.0) < 1e-6);
+    CHECK(kCatalog.at("rtg").slot == "solar" && kCatalog.at("rtg").steadyPowerW == 200.0);
+
+    // Lunar mission, small probe with its solar array: unchanged numbers (88 W load, 68 Wh of shadow).
+    GameFlow flow = NewFlow();
+    CHECK(flow.LoadDesign(OrbitalData::SpacecraftPresets().at("SC_PROSPECTOR"), OrbitalData::LauncherPresets().at("LV_LIGHT")));
+    CHECK(flow.Sunlight() == 1.0 && flow.Rules().solarWm2 == kMission.solarWm2);
+    const double solarW = flow.Preview().sc.generationW, shadowWh = flow.Preview().sc.eclipseWh;
+    CHECK(flow.Preview().sc.loadW == 88.0 && solarW > 500.0 && shadowWh > 60.0);
+    CHECK(flow.Preview().block.empty() && !HasRisk(flow, "R_POWER_GENERATION"));
+
+    // Same probe on the Pluto card: the array makes almost nothing, the design is at risk.
+    CHECK(flow.StartMission(cards[3]) && flow.Difficulty() == "easy");
+    CHECK(std::fabs(flow.Rules().solarWm2 - kMission.solarWm2 / 1560.0) < 1e-9 && kMission.solarWm2 > 1000.0);
+    CHECK(flow.Preview().sc.generationW < 1.0 && HasRisk(flow, "R_POWER_GENERATION") && !flow.Preview().success);
+
+    // Swap the array for an RTG: 200 W in sunlight and shadow, no battery energy needed in shadow.
+    CHECK(flow.Remove("solar", 0).ok && flow.Attach("rtg").ok);
+    CHECK(std::fabs(flow.Preview().sc.generationW - 200.0) < 1.0 && flow.Preview().sc.eclipseWh == 0.0);
+    CHECK(!HasRisk(flow, "R_POWER_GENERATION") && !HasRisk(flow, "R_BATTERY_ECLIPSE"));
+    // The RTG is heavy: the probe now needs a full tank to hold its orbit for the year.
+    CHECK(HasRisk(flow, "R_SC_DELTA_V_LIFETIME"));
+    CHECK(flow.SetPropellant(150.0).ok && flow.Preview().risk.empty() && flow.Preview().block.empty());
+    CHECK(flow.Preview().totalCostMCr == 252.0 && flow.Preview().score > 25.0);
+    CHECK(flow.RequestLaunch() == LaunchAnswer::Launched && flow.LaunchSnapshot()->result.success);
+
+    // The same RTG probe on the tight lunar budget (310 M) with the mid rocket: too expensive.
+    GameFlow lunar = NewFlow();
+    CHECK(lunar.StartMission(cards[0]) && lunar.Sunlight() == 1.0);
+    SpacecraftDesign probe = OrbitalData::SpacecraftPresets().at("SC_PROSPECTOR");
+    probe.solar = {"rtg"};
+    CHECK(lunar.LoadDesign(probe, OrbitalData::LauncherPresets().at("LV_HEAVY")));
+    CHECK(lunar.Preview().totalCostMCr > 310.0 && HasIssue(lunar, "E_BUDGET"));
+    // Going back to a lunar card restores full sunlight.
+    CHECK(flow.Phase() == GamePhase::Flight);
+}
 } // namespace
 int main()
 {
-    FirstGoal(); EmptyAndBuildUp(); ReviewAndLoop(); MissionMenu();
+    FirstGoal(); EmptyAndBuildUp(); ReviewAndLoop(); MissionMenu(); RtgAndPluto();
     std::printf("\n%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

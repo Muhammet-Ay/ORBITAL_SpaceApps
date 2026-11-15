@@ -115,6 +115,7 @@ bool ReadPart(const FJsonObject& Json, const Orbital::Id& Mode,
     R.Number(Json, TEXT("max_wet_mass_kg"), Part.maxWetMassKg, true);
     R.Number(Json, TEXT("area_m2"), Part.areaM2, true);
     R.Number(Json, TEXT("capacity_wh"), Part.capacityWh, true);
+    R.Number(Json, TEXT("steady_power_w"), Part.steadyPowerW, true);
     R.Number(Json, TEXT("data_gb_per_day"), Part.dataGBPerDay, true);
     R.Number(Json, TEXT("data_rate_mbps"), Part.dataRateMbps, true);
     R.Number(Json, TEXT("storage_gb"), Part.storageGB, true);

@@ -122,6 +122,9 @@ private:
 	};
 
 	USceneComponent* MakeGroup(FGroup& Group, const TCHAR* Name, double BottomM);
+	// Radioisotope generator, modelled from basic shapes: a boom from RootM along Outward, a
+	// finned cylinder at its end. Returns how far it reaches from the root, in metres.
+	double AddRtg(USceneComponent* Parent, const FVector& RootM, const FVector& Outward);
 	UStaticMeshComponent* AddShape(USceneComponent* Parent, EShape Shape, const FVector& CenterM,
 		const FVector& SizeM, const FLinearColor& Color, const FRotator& Rotation = FRotator::ZeroRotator);
 	void BuildVehicle(const Orbital::Catalog& Catalog, const Orbital::SpacecraftDesign& Spacecraft,

@@ -12,6 +12,7 @@
 //
 // Lifetime: catalog and mission must outlive this object.
 
+#include <memory>
 #include "../OrbitalSession.h"
 #include "OrbitalAssemblyScreen.h"
 
@@ -71,6 +72,10 @@ struct MissionCard
     Id id, title;
     std::string summary;
     Id primary, difficulty;
+    // Sunlight at the place the probe is being designed for, as a fraction of sunlight at Earth.
+    // The lunar missions use 1. A smaller value dims the solar arrays in the power calculation;
+    // everything else (trajectory, eclipse, budget) stays the lunar scenario.
+    double sunlight = 1.0;
 };
 
 inline std::vector<MissionCard> MissionCards()
@@ -85,6 +90,11 @@ inline std::vector<MissionCard> MissionCards()
         {"polar_survey", "Full Polar Survey",
          "Fly all five instruments with a larger budget: ice, terrain, temperature, landing sites and shadowed craters.",
          "O1_ICE", "easy"},
+        // Pluto is about 39.5 times as far from the Sun as Earth: 1 / 39.5^2 = 1 / 1560 of the sunlight.
+        {"pluto_power", "Pluto Probe: Power Test",
+         "Pluto gets 1/1560 of Earth's sunlight, so solar arrays are useless there. Prove the probe's power "
+         "system in lunar orbit with sunlight dimmed to Pluto's level. You will need an RTG.",
+         "O1_ICE", "easy", 1.0 / 1560.0},
     };
 }
 
@@ -93,13 +103,17 @@ class GameFlow
 public:
     GameFlow(const Catalog& catalog, const Mission& mission, AssemblyRules rules, FlowPresets presets,
              Id primary = "O1_ICE", Id difficulty = "normal")
-        : catalog_(&catalog), mission_(&mission), presets_(std::move(presets)), primary_(std::move(primary)),
-          difficulty_(std::move(difficulty)), screen_(catalog, mission, std::move(rules)), session_(catalog, mission)
+        : catalog_(&catalog), own_(std::make_shared<Mission>(mission)), mission_(own_.get()),
+          baseSolarWm2_(mission.solarWm2), presets_(std::move(presets)), primary_(std::move(primary)),
+          difficulty_(std::move(difficulty)), screen_(catalog, *own_, std::move(rules)), session_(catalog, *own_)
     {
         Sync();
     }
 
     GamePhase Phase() const { return phase_; }
+    // Mission rules in force: the catalog's, with sunlight set by the mission card.
+    const Mission& Rules() const { return *mission_; }
+    double Sunlight() const { return sunlight_; }
     const AssemblyScreen& Screen() const { return screen_; }
     const Session& SessionState() const { return session_; }
     const Id& Primary() const { return primary_; }
@@ -152,6 +166,8 @@ public:
             return false;
         primary_ = card.primary;
         difficulty_ = card.difficulty;
+        sunlight_ = card.sunlight > 0 ? card.sunlight : 1.0;
+        own_->solarWm2 = baseSolarWm2_ * sunlight_;
         last_ = ChangeResult{};
         last_.ok = true;
         return Sync();
@@ -240,7 +256,11 @@ public:
 
 private:
     const Catalog* catalog_;
+    // Own copy of the mission rules, on the heap so the screen and session keep a valid reference
+    // when the flow object is moved. Only solarWm2 ever differs from the catalog's mission.
+    std::shared_ptr<Mission> own_;
     const Mission* mission_;
+    double baseSolarWm2_ = 0, sunlight_ = 1.0;
     FlowPresets presets_;
     Id primary_, difficulty_;
     AssemblyScreen screen_;

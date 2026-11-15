@@ -30,6 +30,9 @@ struct Part
     bool needsFinePointing = false;
     Ids fitsBus, missionModes;
     double thrustN = 0; // Probe engine thrust from thrust_n, in newtons.
+    // Electrical power that does not depend on sunlight (a radioisotope generator), from
+    // steady_power_w. It is produced in sunlight and in shadow alike. Zero for every other part.
+    double steadyPowerW = 0;
 };
 
 using Catalog = std::unordered_map<Id, Part>;
@@ -245,12 +248,15 @@ inline SpacecraftResult Spacecraft(const Catalog& catalog, const Mission& m,
         (result.deltaV / margin - result.fixedDeltaV) / orbit.stationKeepingMpsPerYear);
     result.lifeFraction = std::min(1.0, result.possibleYears / design.years);
 
-    result.generationW = sum(design.solar, &Part::areaM2) * m.solarWm2 * m.cellEfficiency * m.pointingFactor;
+    const double steadyW = sum(design.solar, &Part::steadyPowerW);
+    result.generationW = sum(design.solar, &Part::areaM2) * m.solarWm2 * m.cellEfficiency * m.pointingFactor
+        + steadyW;
     const double periodS = 2.0 * Pi * std::sqrt(axis * axis * axis / m.moonMu);
     const double eclipseS = std::asin(m.moonRadiusM / axis) / Pi * periodS;
     result.periodMin = periodS / 60.0;
     result.eclipseMin = eclipseS / 60.0;
-    result.eclipseWh = result.loadW * eclipseS / 3600.0;
+    // In shadow the battery only has to cover what the steady source does not.
+    result.eclipseWh = std::max(0.0, result.loadW - steadyW) * eclipseS / 3600.0;
     result.usableBatteryWh = sum(design.battery, &Part::capacityWh) * m.depthOfDischarge;
     result.requiredGenerationW = result.loadW + result.eclipseWh * 3600.0
         / ((periodS - eclipseS) * m.chargeEfficiency);
