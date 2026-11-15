@@ -1086,6 +1086,24 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 			Flames[Index]->SetRelativeScale3D(FlameBaseScale[Index] * FVector(1.0, 1.0, Flicker));
 		}
 	}
+	// Heating glow: grows to a peak in the middle of the first-stage burn, gone before staging. Display only.
+	if (HeatGlow)
+	{
+		double Heat = 0.0;
+		if (Mode == EMode::Ascent && CurrentEvent == 0 && Count > 1)
+		{
+			const double Span = FMath::Max(Show[1].displayTimeS - Show[0].displayTimeS, 0.1);
+			const double Phase = FMath::Clamp(((DisplayNow - Show[0].displayTimeS) / Span - 0.30) / 0.60, 0.0, 1.0);
+			Heat = FMath::Sin(Phase * UE_DOUBLE_PI);
+		}
+		HeatGlow->SetVisibility(Heat > 0.03);
+		if (Heat > 0.03)
+		{
+			const double Shimmer = 1.0 + 0.05 * FMath::Sin(DisplayNow * 37.0) + 0.04 * FMath::Sin(DisplayNow * 59.0);
+			const double Wide = 4.6 * (0.55 + 0.45 * Heat) * Shimmer;
+			HeatGlow->SetRelativeScale3D(FVector(Wide, Wide, 7.0 * (0.6 + 0.4 * Heat)));
+		}
+	}
 	bTestOrbitDrag = bTestMode && CurrentEvent == 3 && DisplayNow - Show[3].displayTimeS > 5.0 && Count > 4;
 	UpdateOrbitCamera(*Player);
 
@@ -1177,6 +1195,17 @@ void AOrbitalFlightPlayback::AddFlames()
 	FlameBaseScale[0] = FVector(2.6, 2.6, 16.0);
 	FlameBaseScale[1] = FVector(1.2, 1.2, 7.0);
 	FlameBaseScale[2] = FVector(0.3, 0.3, 1.4);
+
+	// Aerodynamic heating glow: a cone over the nose, shown only in the dense part of the ascent.
+	if (Fairing.Component)
+	{
+		const double LengthM = 7.0;
+		HeatGlow = AddShape(Fairing.Component, EShape::Cone, FVector(0, 0, FairingHeightM + 1.0 - LengthM / 2.0),
+			FVector(4.6, 4.6, LengthM), FLinearColor::White, FRotator::ZeroRotator);
+		HeatGlow->SetMaterial(0, FlameMaterial);
+		HeatGlow->SetCastShadow(false);
+		HeatGlow->SetVisibility(false);
+	}
 }
 
 void AOrbitalFlightPlayback::SetBurning(bool bStage1, bool bStage2, bool bProbe, bool bQuiet)

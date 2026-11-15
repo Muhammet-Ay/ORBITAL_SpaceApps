@@ -174,6 +174,7 @@ private:
 	FString StatusMessage, StatusDetail;
 
 	UStaticMeshComponent* Stage1Flame = nullptr;
+	UStaticMeshComponent* HeatGlow = nullptr; // nose glow during the dense part of the ascent
 	UStaticMeshComponent* Stage2Flame = nullptr;
 	UStaticMeshComponent* ProbeFlame = nullptr;
 	FVector FlameBaseScale[3];
