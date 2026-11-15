@@ -131,6 +131,30 @@ static const FOrbitalCategory* OrbitalCategoryAt(int32 Stage, int32 Index)
 	return nullptr;
 }
 
+// Plain title for a result code: "R_SC_DELTA_V_INSERTION" -> "Spacecraft delta-v insertion".
+static FString OrbitalIssueTitle(const Orbital::Id& Code)
+{
+	FString Text = OrbitalGameText(Code);
+	if (Text.Len() > 2 && Text[1] == TEXT('_'))
+	{
+		Text.RightChopInline(2);
+	}
+	Text = Text.Replace(TEXT("_"), TEXT(" ")).ToLower();
+	Text = (TEXT(" ") + Text + TEXT(" ")).Replace(TEXT(" sc "), TEXT(" spacecraft ")).Replace(TEXT(" lv "), TEXT(" launcher "))
+		.Replace(TEXT(" delta v "), TEXT(" delta-v ")).Replace(TEXT(" twr "), TEXT(" thrust-to-weight ")).TrimStartAndEnd();
+	if (!Text.IsEmpty())
+	{
+		Text[0] = FChar::ToUpper(Text[0]);
+	}
+	return Text;
+}
+
+static const TCHAR* OrbitalSeverityWord(Orbital::ReviewSeverity Severity)
+{
+	return Severity == Orbital::ReviewSeverity::Block ? TEXT("MUST FIX")
+		: Severity == Orbital::ReviewSeverity::Risk ? TEXT("RISK") : TEXT("NOTE");
+}
+
 static FString OrbitalChoiceLabel(const FString& Id)
 {
 	struct FChoiceLabel
@@ -678,8 +702,8 @@ void AOrbitalGameDirector::ClearPreview()
 	PreviewKey.clear();
 }
 
-// Rebuilds the model when the design or the build stage changes, and turns a camera slowly
-// around it. The camera looks a little to the side, so the model sits in the builder window.
+// Rebuilds the model when the design or the build stage changes, and turns it slowly in front of
+// a still camera. The camera looks a little to the side, so the model sits in the builder window.
 void AOrbitalGameDirector::UpdatePreview(APlayerController& Player, Orbital::GameFlow& Flow, float DeltaSeconds)
 {
 	UWorld* World = GetWorld();
@@ -692,7 +716,8 @@ void AOrbitalGameDirector::UpdatePreview(APlayerController& Player, Orbital::Gam
 	const bool bProbeOnly = BuildStage == 0;
 	const Orbital::AssemblySnapshot& Snapshot = Flow.Screen().Snapshot();
 	const std::string Key = (bProbeOnly ? "P" : "R") + Snapshot.spacecraftJson + Snapshot.launcherJson;
-	if (Key != PreviewKey || !PreviewVehicle)
+	const bool bRebuilt = Key != PreviewKey || !PreviewVehicle;
+	if (bRebuilt)
 	{
 		ClearPreview();
 		PreviewKey = Key;
@@ -726,7 +751,8 @@ void AOrbitalGameDirector::UpdatePreview(APlayerController& Player, Orbital::Gam
 	{
 		Player.SetViewTarget(PreviewCamera);
 	}
-	PreviewYaw = FMath::Fmod(PreviewYaw + 10.0 * DeltaSeconds, 360.0);
+	PreviewSpin = FMath::Fmod(PreviewSpin + 12.0 * DeltaSeconds, 360.0);
+	PreviewVehicle->SetActorRotation(FRotator(0.0, PreviewSpin, 0.0)); // the model turns; the camera stays
 
 	int32 SizeX = 16, SizeY = 9;
 	Player.GetViewportSize(SizeX, SizeY);
@@ -740,8 +766,33 @@ void AOrbitalGameDirector::UpdatePreview(APlayerController& Player, Orbital::Gam
 		? SizeCm / (2.0 * TanHalfWide * WindowWide * 0.85)
 		: FMath::Max(SizeCm / (2.0 * TanHalfTall * 0.62), 600.0 / (2.0 * TanHalfWide * WindowWide * 0.7));
 	const FVector Focus = PreviewVehicle->GetPreviewFocus();
-	const FRotator Around(bProbeOnly ? -18.0 : -6.0, PreviewYaw, 0.0);
-	const FVector Location = Focus - Around.Vector() * Distance;
+	const double Pitch = bProbeOnly ? -18.0 : -6.0;
+	if (bRebuilt)
+	{
+		// Pad structures may stand between the camera and the model. Keep the current side if the
+		// view is clear; otherwise take the first side that is. The model's own parts have no collision.
+		const auto Clear = [&](double Yaw)
+		{
+			const FVector From = Focus - FRotator(Pitch, Yaw, 0.0).Vector() * Distance;
+			const FVector Side = FRotator(0.0, Yaw + 90.0, 0.0).Vector() * (bProbeOnly ? SizeCm * 0.5 : 300.0);
+			const FVector Rise(0, 0, bProbeOnly ? 0.0 : SizeCm * 0.45);
+			FCollisionQueryParams Query(FName(TEXT("OrbitalPreview")), false, PreviewVehicle);
+			for (const FVector& Target : {Focus, Focus + Side, Focus - Side, Focus + Rise})
+			{
+				FHitResult Hit;
+				if (World->LineTraceSingleByChannel(Hit, From, Target, ECC_Visibility, Query))
+				{
+					return false;
+				}
+			}
+			return true;
+		};
+		for (int32 Step = 0; Step < 12 && !Clear(PreviewYaw); ++Step)
+		{
+			PreviewYaw = FMath::Fmod(PreviewYaw + 30.0, 360.0);
+		}
+	}
+	const FVector Location = Focus - FRotator(Pitch, PreviewYaw, 0.0).Vector() * Distance;
 	FRotator Look = (Focus - Location).Rotation();
 	const double WindowCentre = (OrbitalWindowLeft + OrbitalWindowRight) * 0.5;
 	Look.Yaw -= FMath::RadiansToDegrees(FMath::Atan((WindowCentre - 0.5) * 2.0 * TanHalfWide));
@@ -963,7 +1014,7 @@ void AOrbitalAssemblyHUD::DrawHUD()
 		// ---- middle: part cards for the selected socket
 		if (!bSelectedHere)
 		{
-			Label(TEXT("Click a place above to see its parts."), Dim, MidX, Y);
+			Label(TEXT("Click a row above to choose a part for it."), Dim, MidX, Y);
 		}
 		else
 		{
@@ -1105,7 +1156,7 @@ void AOrbitalAssemblyHUD::DrawHUD()
 			DrawRect(RowColor, RightX, Y, RightW, RowHeight - 2.0f);
 			DrawRect(StateColor, RightX, Y, 6.0f * Unit, RowHeight - 2.0f);
 			Label(OrbitalGameText(Row.tooltipKey), White, RightX + Pad * 1.6f, Y);
-			FString Value = TEXT("not available yet");
+			FString Value = TEXT("fit the required parts first");
 			if (Row.current.has_value() && Row.limit.has_value())
 			{
 				Value = FString::Printf(TEXT("%s  %s / %s %s"), *OrbitalGameText(Row.measure), *OrbitalNumber(*Row.current),
@@ -1136,21 +1187,40 @@ void AOrbitalAssemblyHUD::DrawHUD()
 	{
 		for (const Orbital::ReviewIssue& Issue : Review->issues)
 		{
-			if (Y > ButtonsTop - RowHeight * 2.0f)
+			if (Y > ButtonsTop - RowHeight * 3.0f)
 			{
 				Label(TEXT("... more items"), Dim, RightX, Y);
 				break;
 			}
 			const bool bBlock = Issue.severity == Orbital::ReviewSeverity::Block;
 			const FLinearColor IssueColor = bBlock ? Red : Amber;
-			const TCHAR* Severity = bBlock ? TEXT("BLOCK") : Issue.severity == Orbital::ReviewSeverity::Risk ? TEXT("RISK") : TEXT("WARN");
-			Label(FString::Printf(TEXT("%s  %s"), Severity, *OrbitalGameText(Issue.code)), IssueColor, RightX, Y);
+			Label(FString::Printf(TEXT("%s:  %s"), OrbitalSeverityWord(Issue.severity), *OrbitalIssueTitle(Issue.code)),
+				IssueColor, RightX, Y);
 			Y += RowHeight;
 			const FString Cause = State->CauseText(Issue.code), Fix = State->FixText(Issue.code);
-			const FString Text = Cause.IsEmpty() ? FString() : Fix.IsEmpty() ? Cause : Cause + TEXT("  Fix: ") + Fix;
+			FString Text = Cause.IsEmpty() ? FString() : Fix.IsEmpty() ? Cause : Cause + TEXT("  How to fix: ") + Fix;
+			if (Issue.code == "E_MISSING_REQUIRED_PART")
+			{
+				// Name the empty places, so the player knows what to add.
+				FString Missing;
+				for (const Orbital::SocketView& View : Views)
+				{
+					const bool bRequired = View.index == 0 && (View.socket == "probe-core" || View.socket == "probe-engine"
+						|| View.socket == "antenna" || View.socket == "avionics" || View.socket == "fairing"
+						|| View.socket.rfind("stage", 0) == 0);
+					if (bRequired && View.partId.empty())
+					{
+						Missing += (Missing.IsEmpty() ? TEXT("") : TEXT(", ")) + OrbitalSocketTitle(View.socket, View.index);
+					}
+				}
+				if (!Missing.IsEmpty())
+				{
+					Text = TEXT("Still missing: ") + Missing + TEXT(".");
+				}
+			}
 			for (const FString& Line : WrapText(Text, RightW - Pad, Font, Scale))
 			{
-				if (Y > ButtonsTop - RowHeight)
+				if (Y > ButtonsTop - RowHeight * 2.0f)
 				{
 					break;
 				}
@@ -1164,14 +1234,17 @@ void AOrbitalAssemblyHUD::DrawHUD()
 	{
 		const float Gap = 6.0f * Unit, CaseWidth = (RightW - Gap * 3) / 4.0f;
 		const TCHAR* Cases[] = {TEXT("TC-A"), TEXT("TC-B"), TEXT("TC-E"), TEXT("TC-F")};
+		// What each ready-made design shows (TEST_CASES.md).
+		const TCHAR* CaseTitles[] = {TEXT("Small & cheap"), TEXT("Full survey"), TEXT("Weak battery"), TEXT("Small arrays")};
+		Label(TEXT("READY-MADE DESIGNS  (click one to load it)"), Accent, RightX, ButtonsTop - RowHeight);
 		for (int32 Index = 0; Index < 4; ++Index)
 		{
-			Button(FString(TEXT("Load ")) + Cases[Index], RightX + Index * (CaseWidth + Gap), ButtonsTop, CaseWidth,
+			Button(CaseTitles[Index], RightX + Index * (CaseWidth + Gap), ButtonsTop, CaseWidth,
 				ButtonColor, FString(TEXT("c:")) + Cases[Index], bInteractive);
 		}
 		const bool bBlocked = !Preview.block.empty();
 		const float LaunchTop = ButtonsTop + RowHeight + Gap, LaunchHeight = RowHeight * 1.6f;
-		const FString LaunchLabel = bBlocked ? TEXT("LAUNCH  (blocked: fix the red items)") : TEXT("LAUNCH");
+		const FString LaunchLabel = bBlocked ? TEXT("LAUNCH  (first fix the MUST FIX items)") : TEXT("LAUNCH");
 		DrawRect(bBlocked ? FLinearColor(0.30f, 0.30f, 0.32f, 0.95f) : FLinearColor(0.15f, 0.55f, 0.35f, 0.98f),
 			RightX, LaunchTop, RightW, LaunchHeight);
 		float LaunchWidth = 0, LaunchTextHeight = 0;
@@ -1207,7 +1280,7 @@ void AOrbitalAssemblyHUD::DrawHUD()
 		{
 			for (const Orbital::ReviewIssue& Issue : Review->issues)
 			{
-				AddPanelLine(OrbitalGameText(Issue.code), Accent);
+				AddPanelLine(FString(OrbitalSeverityWord(Issue.severity)) + TEXT(":  ") + OrbitalIssueTitle(Issue.code), Accent);
 				const FString Cause = State->CauseText(Issue.code);
 				for (const FString& Line : WrapText(Cause, PanelW - Pad * 6, Font, Scale))
 				{
