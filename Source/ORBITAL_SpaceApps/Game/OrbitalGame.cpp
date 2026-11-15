@@ -883,62 +883,7 @@ void AOrbitalAssemblyHUD::DrawHUD()
 
 	// ---- build stages: spacecraft first, then the rocket, then the mission plan
 	{
-		const TCHAR* StageTitles[] = {TEXT("1  SPACECRAFT"), TEXT("2  ROCKET"), TEXT("3  		const auto Choices = [&](const TCHAR* Title, const TArray<FString>& Ids, const FString& CurrentId, const TCHAR* Kind)
-		{
-			Label(Title, White, MidX, Y);
-			const float StartX = MidX + MidW * 0.27f, Gap = 4.0f * Unit;
-			const float ChoiceWidth = (MidW * 0.73f - Gap * (Ids.Num() - 1)) / FMath::Max(1, Ids.Num());
-			for (int32 Index = 0; Index < Ids.Num(); ++Index)
-			{
-				const bool bOn = Ids[Index] == CurrentId;
-				Button(OrbitalChoiceLabel(Ids[Index]), StartX + Index * (ChoiceWidth + Gap), Y, ChoiceWidth, bOn ? ButtonOn : ButtonColor,
-					FString(Kind) + TEXT(":") + Ids[Index], bInteractive && !bOn);
-			}
-			Y += RowHeight + 3.0f * Unit;
-		};
-		const auto SortedKeys = [](const auto& Map)
-		{
-			TArray<FString> Keys;
-			for (const auto& Entry : Map)
-			{
-				Keys.Add(OrbitalGameText(Entry.first));
-			}
-			Keys.Sort();
-			return Keys;
-		};
-		Choices(TEXT("Orbit"), SortedKeys(Data->Mission.orbits), OrbitalGameText(Snapshot.spacecraft.orbit), TEXT("o"));
-		TArray<FString> YearOptions;
-		for (const double Years : Data->Mission.plannedYearsOptions)
-		{
-			YearOptions.Add(OrbitalNumber(Years));
-		}
-		Choices(TEXT("Years"), YearOptions, OrbitalNumber(Snapshot.spacecraft.years), TEXT("y"));
-		Choices(TEXT("Ground"), SortedKeys(Data->Mission.ground), OrbitalGameText(Snapshot.spacecraft.ground), TEXT("g"));
-		Choices(TEXT("Primary goal"), SortedKeys(Data->Mission.objectiveWeights), OrbitalGameText(Flow->Primary()), TEXT("m"));
-		Choices(TEXT("Difficulty"), SortedKeys(Data->Mission.budgets), OrbitalGameText(Flow->Difficulty()), TEXT("d"));
-		{
-			double CapacityKg = 0;
-			for (const Orbital::Id& Tank : Snapshot.spacecraft.tanks)
-			{
-				const auto Found = Data->Parts.find(Tank);
-				CapacityKg += Found != Data->Parts.end() ? Found->second.capacityKg : 0.0;
-			}
-			Label(FString::Printf(TEXT("Propellant  %s / %s kg"), *OrbitalNumber(Snapshot.spacecraft.propKg),
-				*OrbitalNumber(CapacityKg)), White, MidX, Y);
-			const float StepWidth = MidW * 0.115f, StepX = MidX + MidW * 0.50f, Gap = 4.0f * Unit;
-			const TCHAR* Steps[] = {TEXT("-50"), TEXT("-10"), TEXT("+10"), TEXT("+50")};
-			for (int32 Index = 0; Index < 4; ++Index)
-			{
-				Button(Steps[Index], StepX + Index * (StepWidth + Gap), Y, StepWidth, ButtonColor,
-					FString(TEXT("f:")) + Steps[Index], bInteractive);
-			}
-			Y += RowHeight + 3.0f * Unit;
-			Label(FString::Printf(TEXT("Stage 1 engines  x%d"), Snapshot.launcher.firstEngineCount), White, MidX, Y);
-			Button(TEXT("-1"), StepX, Y, StepWidth, ButtonColor, TEXT("e:-1"), bInteractive);
-			Button(TEXT("+1"), StepX + StepWidth + Gap, Y, StepWidth, ButtonColor, TEXT("e:+1"), bInteractive);
-			Y += RowHeight + 3.0f * Unit;
-		}
- PLAN")};
+		const TCHAR* StageTitles[] = {TEXT("1  SPACECRAFT"), TEXT("2  ROCKET"), TEXT("3  MISSION PLAN")};
 		const float Gap = 4.0f * Unit, TabW = (BuildW - Gap * 2) / 3.0f;
 		for (int32 Index = 0; Index < 3; ++Index)
 		{
