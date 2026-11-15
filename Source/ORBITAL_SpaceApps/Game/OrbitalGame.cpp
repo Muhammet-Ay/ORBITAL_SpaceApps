@@ -1460,13 +1460,19 @@ void AOrbitalGameFlightHUD::DrawAttitude(const AOrbitalFlightPlayback& Flight, c
 	float MeasureWidth = 0, TextHeight = 0;
 	GetTextSize(TEXT("Ag"), MeasureWidth, TextHeight, Font, Scale);
 	const float RowHeight = TextHeight * 1.25f, Header = RowHeight + Pad;
-	const float PanelWidth = Radius * 2.0f + Pad * 2.0f, PanelHeight = Header + Radius * 2.0f + RowHeight * 3.0f + Pad * 2.0f;
+	// Wide enough for the longest line under the dial, in either language.
+	float LongestWidth = 0, LongestHeight = 0;
+	GetTextSize(TEXT("Nearly level, gaining speed"), LongestWidth, LongestHeight, Font, Scale);
+	float AngleWidth = 0;
+	GetTextSize(TEXT("Nose above horizon: 90 deg"), AngleWidth, LongestHeight, Font, Scale);
+	const float PanelWidth = FMath::Max3(Radius * 2.0f, LongestWidth, AngleWidth) + Pad * 2.0f;
+	const float PanelHeight = Header + Radius * 2.0f + RowHeight * 3.0f + Pad * 2.0f;
 	const FLinearColor Accent(0.7f, 0.85f, 1.0f), Sky(0.20f, 0.45f, 0.85f), Ground(0.45f, 0.32f, 0.20f);
 	const FLinearColor Mark(1.0f, 0.80f, 0.25f);
 	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f), Left, Top, PanelWidth, PanelHeight);
 	DrawText(TEXT("ATTITUDE"), Accent, Left + Pad, Top + Pad * 0.6f, Font, Scale);
 
-	const float CentreX = Left + Pad + Radius, CentreY = Top + Header + Radius;
+	const float CentreX = Left + PanelWidth * 0.5f, CentreY = Top + Header + Radius;
 	const float Horizon = CentreY + PitchDeg / 90.0f * Radius; // screen height of the horizon line
 	const float Strip = FMath::Max(1.0f, Unit);
 	for (float Offset = -Radius; Offset < Radius; Offset += Strip)
