@@ -40,8 +40,8 @@ NASA ses varlıkları içe aktarılmamışsa oyun sentez motor sesine geri döne
 
 | Varlık (Unreal) | Kaynak | Lisans |
 |---|---|---|
-| `/Game/Audio/NASA/S_NASA_Ignition` | NASA Historical Sounds, "Atlas V: Launch": https://www.nasa.gov/wp-content/uploads/2015/01/590329main_ringtone_SDO_launchNats.mp3 . MP3'ten WAV'a çevrildi. Birinci kademe ateşlemesinde bir kez çalar. | Credit: NASA, NASA Media Usage Guidelines |
-| `/Game/Audio/NASA/S_NASA_EngineLoop` | NASA Historical Sounds, "SLS Test Fire": https://www.nasa.gov/wp-content/uploads/2015/01/663784main_SLS_Audio_D.mp3 . Sabit bölümü kesildi, WAV'a çevrildi, döngü olarak işaretlendi. Motor yanarken çalar. | Credit: NASA, NASA Media Usage Guidelines |
+| `/Game/Audio/NASA/S_NASA_Ignition` | NASA Historical Sounds, "Atlas V: Launch": https://www.nasa.gov/wp-content/uploads/2015/01/590329main_ringtone_SDO_launchNats.mp3 . Sabit bölümü kesildi, sesi yükseltildi, WAV'a çevrildi, döngü olarak işaretlendi. Birinci kademe ateşlemesinde bir kez çalar. | Credit: NASA, NASA Media Usage Guidelines |
+| `/Game/Audio/NASA/S_NASA_EngineLoop` | NASA Historical Sounds, "SLS Test Fire": https://www.nasa.gov/wp-content/uploads/2015/01/663784main_SLS_Audio_D.mp3 . Konuşma bölümü kesildi, ilk 10 saniyesi WAV olarak alındı. Motor yanarken çalar. | Credit: NASA, NASA Media Usage Guidelines |
 | `/Game/Audio/S_EngineLoop` | Ekip üretimi, sentez (alçak geçirgen gürültü ve 55/82 Hz ton), 3,6 sn döngü. NASA motor sesi yoksa yedek olarak kullanılır. | CC0 |
 | `/Game/Audio/S_Separation` | Ekip üretimi, sentez (alçalan ton ve gürültü patlaması), 0,7 sn | CC0 |
 | `/Game/Audio/S_Click` | Ekip üretimi, sentez (1200 Hz kısa ton), 0,07 sn | CC0 |
