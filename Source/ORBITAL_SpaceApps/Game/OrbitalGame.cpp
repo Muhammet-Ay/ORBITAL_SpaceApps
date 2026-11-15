@@ -5,6 +5,7 @@
 #include "../OrbitalCatalogLoader.h"
 #include "AudioDevice.h"
 #include "Camera/CameraActor.h"
+#include "Camera/CameraComponent.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
@@ -90,6 +91,46 @@ static FString OrbitalSocketTitle(const Orbital::Id& Socket, int32 Index)
 }
 
 // Short button labels for mission plan choices; the action still carries the catalog ID.
+// Builder layout, as fractions of the screen. The window shows the 3D model behind the HUD.
+static const float OrbitalWindowLeft = 0.43f, OrbitalWindowRight = 0.655f;
+
+// Part categories of the builder. Stage 0 is the spacecraft, stage 1 the rocket.
+struct FOrbitalCategory
+{
+	int32 Stage;
+	const TCHAR* Title;
+	const char* Sockets[2];
+};
+static const FOrbitalCategory OrbitalCategories[] = {
+	{0, TEXT("Structure"), {"probe-core", ""}},
+	{0, TEXT("Propulsion"), {"probe-engine", "probe-tank"}},
+	{0, TEXT("Power"), {"solar", "battery"}},
+	{0, TEXT("Control"), {"adcs", "avionics"}},
+	{0, TEXT("Comms"), {"antenna", ""}},
+	{0, TEXT("Instruments"), {"instrument", ""}},
+	{1, TEXT("Stage 1"), {"stage1-tank", "stage1-engine"}},
+	{1, TEXT("Stage 2"), {"stage2-tank", "stage2-engine"}},
+	{1, TEXT("Fairing"), {"fairing", ""}},
+};
+
+static bool OrbitalCategoryHas(const FOrbitalCategory& Entry, const Orbital::Id& Socket)
+{
+	return Socket == Entry.Sockets[0] || Socket == Entry.Sockets[1];
+}
+
+// The N-th category of a stage; null past the end.
+static const FOrbitalCategory* OrbitalCategoryAt(int32 Stage, int32 Index)
+{
+	for (const FOrbitalCategory& Entry : OrbitalCategories)
+	{
+		if (Entry.Stage == Stage && Index-- == 0)
+		{
+			return &Entry;
+		}
+	}
+	return nullptr;
+}
+
 static FString OrbitalChoiceLabel(const FString& Id)
 {
 	struct FChoiceLabel
@@ -353,6 +394,10 @@ void AOrbitalGameDirector::Tick(float DeltaSeconds)
 		{
 			Hud->Director = this;
 		}
+		if (Flow && State->GetScreen() == EOrbitalScreen::Game)
+		{
+			UpdatePreview(*Player, *Flow, DeltaSeconds);
+		}
 	}
 	else if (Flow->Phase() == Orbital::GamePhase::Flight && Flight && Flight->GetReport().bVisible)
 	{
@@ -475,7 +520,40 @@ void AOrbitalGameDirector::HandleAction(const FString& Action)
 		{
 			SelectedSocket = OrbitalGameId(Socket);
 			SelectedIndex = FCString::Atoi(*Index);
+			// Open the tab the socket belongs to.
+			for (int32 Stage = 0; Stage < 2; ++Stage)
+			{
+				for (int32 Index2 = 0; const FOrbitalCategory* Entry = OrbitalCategoryAt(Stage, Index2); ++Index2)
+				{
+					if (OrbitalCategoryHas(*Entry, SelectedSocket))
+					{
+						BuildStage = Stage;
+						Category = Index2;
+					}
+				}
+			}
 		}
+	}
+	else if (Kind == TEXT("t") || Kind == TEXT("u"))
+	{
+		if (Kind == TEXT("t"))
+		{
+			BuildStage = FMath::Clamp(FCString::Atoi(*Argument), 0, 2);
+			Category = 0;
+		}
+		else
+		{
+			Category = FMath::Max(0, FCString::Atoi(*Argument));
+		}
+		// Select the first socket of the category, so its parts show at once.
+		SelectedSocket.clear();
+		SelectedIndex = -1;
+		if (const FOrbitalCategory* Entry = OrbitalCategoryAt(BuildStage, Category))
+		{
+			SelectedSocket = Entry->Sockets[0];
+			SelectedIndex = 0;
+		}
+		return;
 	}
 	else if (Kind == TEXT("p"))
 	{
@@ -558,6 +636,7 @@ void AOrbitalGameDirector::BeginFlight()
 		return;
 	}
 	const Orbital::SessionLaunch& Shot = *Flow->LaunchSnapshot();
+	ClearPreview();
 	Flight = World->SpawnActor<AOrbitalFlightPlayback>();
 	if (!Flight || !Flight->StartFlight(Data->Parts, Data->Mission, Shot.design.spacecraft, Shot.design.launcher, Shot.result))
 	{
@@ -585,6 +664,89 @@ void AOrbitalGameDirector::HandleRedesign()
 	// Reload the level to put the pad, cameras and vehicle back. The game state object lives
 	// in the GameInstance, so the design is still there when the level comes back.
 	UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this, true)));
+}
+
+// ---------------------------------------------------------------- builder preview
+
+void AOrbitalGameDirector::ClearPreview()
+{
+	if (PreviewVehicle)
+	{
+		PreviewVehicle->ClearPreview();
+		PreviewVehicle = nullptr;
+	}
+	PreviewKey.clear();
+}
+
+// Rebuilds the model when the design or the build stage changes, and turns a camera slowly
+// around it. The camera looks a little to the side, so the model sits in the builder window.
+void AOrbitalGameDirector::UpdatePreview(APlayerController& Player, Orbital::GameFlow& Flow, float DeltaSeconds)
+{
+	UWorld* World = GetWorld();
+	UOrbitalGameStateSubsystem* State = GetState();
+	const FOrbitalAssemblyData* Data = State ? State->GetData() : nullptr;
+	if (!World || !Data)
+	{
+		return;
+	}
+	const bool bProbeOnly = BuildStage == 0;
+	const Orbital::AssemblySnapshot& Snapshot = Flow.Screen().Snapshot();
+	const std::string Key = (bProbeOnly ? "P" : "R") + Snapshot.spacecraftJson + Snapshot.launcherJson;
+	if (Key != PreviewKey || !PreviewVehicle)
+	{
+		ClearPreview();
+		PreviewKey = Key;
+		PreviewVehicle = World->SpawnActor<AOrbitalFlightPlayback>();
+		if (PreviewVehicle)
+		{
+			PreviewVehicle->BuildPreview(Data->Parts, Snapshot.spacecraft, Snapshot.launcher, bProbeOnly);
+		}
+	}
+	if (!PreviewVehicle)
+	{
+		return;
+	}
+	if (!PreviewCamera)
+	{
+		PreviewCamera = World->SpawnActor<ACameraActor>();
+		if (!PreviewCamera)
+		{
+			return;
+		}
+		UCameraComponent* Lens = PreviewCamera->GetCameraComponent();
+		Lens->SetFieldOfView(40.0f);
+		Lens->SetConstraintAspectRatio(false);
+		// The project runs with fixed exposure; use the same bias as the flight cameras.
+		const IConsoleVariable* Bias = IConsoleManager::Get().FindConsoleVariable(TEXT("orbital.FlightExposureBias"));
+		Lens->PostProcessBlendWeight = 1.0f;
+		Lens->PostProcessSettings.bOverride_AutoExposureBias = true;
+		Lens->PostProcessSettings.AutoExposureBias = Bias ? Bias->GetFloat() : -1.3f;
+	}
+	if (Player.GetViewTarget() != PreviewCamera)
+	{
+		Player.SetViewTarget(PreviewCamera);
+	}
+	PreviewYaw = FMath::Fmod(PreviewYaw + 10.0 * DeltaSeconds, 360.0);
+
+	int32 SizeX = 16, SizeY = 9;
+	Player.GetViewportSize(SizeX, SizeY);
+	const double Aspect = SizeY > 0 ? static_cast<double>(SizeX) / SizeY : 16.0 / 9.0;
+	const double TanHalfWide = FMath::Tan(FMath::DegreesToRadians(20.0));
+	const double TanHalfTall = TanHalfWide / Aspect;
+	const double WindowWide = OrbitalWindowRight - OrbitalWindowLeft;
+	const double SizeCm = PreviewVehicle->GetPreviewSizeM() * 100.0;
+	// A rocket must fit the window's height; a spacecraft with its arrays out must fit the width.
+	const double Distance = bProbeOnly
+		? SizeCm / (2.0 * TanHalfWide * WindowWide * 0.85)
+		: FMath::Max(SizeCm / (2.0 * TanHalfTall * 0.62), 600.0 / (2.0 * TanHalfWide * WindowWide * 0.7));
+	const FVector Focus = PreviewVehicle->GetPreviewFocus();
+	const FRotator Around(bProbeOnly ? -18.0 : -6.0, PreviewYaw, 0.0);
+	const FVector Location = Focus - Around.Vector() * Distance;
+	FRotator Look = (Focus - Location).Rotation();
+	const double WindowCentre = (OrbitalWindowLeft + OrbitalWindowRight) * 0.5;
+	Look.Yaw -= FMath::RadiansToDegrees(FMath::Atan((WindowCentre - 0.5) * 2.0 * TanHalfWide));
+	PreviewCamera->SetActorLocationAndRotation(Location, Look);
+	PreviewVehicle->LightPreview(Location + FVector(0, 0, Distance * 0.3));
 }
 
 // ---------------------------------------------------------------- assembly screen
@@ -649,12 +811,33 @@ void AOrbitalAssemblyHUD::DrawHUD()
 	const FLinearColor ButtonColor(0.10f, 0.35f, 0.75f, 0.95f), ButtonOn(0.15f, 0.55f, 0.35f, 0.95f);
 	const FLinearColor RowColor(1.0f, 1.0f, 1.0f, 0.06f), RowSelected(0.10f, 0.35f, 0.75f, 0.55f);
 
-	DrawRect(FLinearColor(0.02f, 0.03f, 0.06f, 0.78f), 0, 0, Width, Height);
+	const FLinearColor Backdrop(0.02f, 0.03f, 0.06f, 0.78f), Panel(0.02f, 0.03f, 0.06f, 0.90f);
+	Orbital::GameFlow* Flow = State ? State->GetFlow() : nullptr;
+	const float Top = Pad * 2;
+	const float ColumnTop = Top + TextHeight * 2.6f;
+	const float WindowX = Width * OrbitalWindowLeft, WindowW = Width * (OrbitalWindowRight - OrbitalWindowLeft);
+	const float WindowY = ColumnTop + RowHeight * 1.3f, WindowH = Height - WindowY - Pad * 2;
+	if (State && State->GetScreen() == EOrbitalScreen::Game && Flow)
+	{
+		// Panels around a clear window: the 3D model of the design shows through it.
+		DrawRect(Panel, 0, 0, Width, WindowY);
+		DrawRect(Panel, 0, WindowY, WindowX, Height - WindowY);
+		DrawRect(Panel, WindowX + WindowW, WindowY, Width - WindowX - WindowW, Height - WindowY);
+		DrawRect(Panel, WindowX, WindowY + WindowH, WindowW, Height - WindowY - WindowH);
+		const float Edge = FMath::Max(1.0f, 2.0f * Unit);
+		DrawRect(Accent, WindowX, WindowY, WindowW, Edge);
+		DrawRect(Accent, WindowX, WindowY + WindowH - Edge, WindowW, Edge);
+		DrawRect(Accent, WindowX, WindowY, Edge, WindowH);
+		DrawRect(Accent, WindowX + WindowW - Edge, WindowY, Edge, WindowH);
+	}
+	else
+	{
+		DrawRect(Backdrop, 0, 0, Width, Height);
+	}
 	if (State && DrawMenu(*State, Width, Height, Unit, Font))
 	{
 		return;
 	}
-	Orbital::GameFlow* Flow = State ? State->GetFlow() : nullptr;
 	if (!Flow)
 	{
 		DrawText(TEXT("ORBITAL could not load PART_CATALOG.json"), Red, Pad * 3, Pad * 3, Font, TitleScale);
@@ -686,172 +869,279 @@ void AOrbitalAssemblyHUD::DrawHUD()
 	};
 
 	// ---- header
-	const float Top = Pad * 2;
-	DrawText(TEXT("ORBITAL  |  Assembly"), White, Pad * 3, Top, Font, TitleScale);
+	DrawText(TEXT("ORBITAL  |  Builder"), White, Pad * 3, Top, Font, TitleScale);
 	Label(FString::Printf(TEXT("Mission: %s   Budget: %s M credits"),
 		State->GetMissionTitle().IsEmpty() ? TEXT("lunar polar survey") : *State->GetMissionTitle(),
 		*OrbitalNumber(Preview.budgetMCr)), Dim, Width * 0.34f, Top + TextHeight * 0.2f);
 	Button(TEXT("Menu"), Width * 0.90f, Top, Width * 0.08f, ButtonColor, TEXT("n:menu"), bInteractive);
-	const float ColumnTop = Top + TextHeight * 2.6f;
-	const float LeftX = Width * 0.02f, LeftW = Width * 0.29f;
-	const float MidX = Width * 0.33f, MidW = Width * 0.30f;
-	const float RightX = Width * 0.65f, RightW = Width * 0.33f;
+	const float LeftX = Width * 0.02f, LeftW = Width * 0.125f;
+	const float MidX = Width * 0.155f, MidW = Width * 0.265f;
+	const float RightX = Width * 0.665f, RightW = Width * 0.325f;
+	const float BuildW = MidX + MidW - LeftX, ContentTop = ColumnTop + RowHeight * 1.5f;
+	const float ContentBottom = Height - RowHeight * 3.2f;
+	const int32 Stage = Game->GetBuildStage();
 
-	// ---- left: sockets
-	float Y = ColumnTop;
-	bool bRocketHeader = false, bProbeHeader = false;
-	for (const Orbital::SocketView& View : Flow->Screen().Sockets())
+	// ---- build stages: spacecraft first, then the rocket, then the mission plan
 	{
-		if (View.socket == "separator")
+		const TCHAR* StageTitles[] = {TEXT("1  SPACECRAFT"), TEXT("2  ROCKET"), TEXT("3  		const auto Choices = [&](const TCHAR* Title, const TArray<FString>& Ids, const FString& CurrentId, const TCHAR* Kind)
 		{
-			continue; // comes with the stage 1 tank
-		}
-		const bool bProbe = View.socket.rfind("stage", 0) != 0 && View.socket != "fairing";
-		if (!bProbe && !bRocketHeader)
+			Label(Title, White, MidX, Y);
+			const float StartX = MidX + MidW * 0.27f, Gap = 4.0f * Unit;
+			const float ChoiceWidth = (MidW * 0.73f - Gap * (Ids.Num() - 1)) / FMath::Max(1, Ids.Num());
+			for (int32 Index = 0; Index < Ids.Num(); ++Index)
+			{
+				const bool bOn = Ids[Index] == CurrentId;
+				Button(OrbitalChoiceLabel(Ids[Index]), StartX + Index * (ChoiceWidth + Gap), Y, ChoiceWidth, bOn ? ButtonOn : ButtonColor,
+					FString(Kind) + TEXT(":") + Ids[Index], bInteractive && !bOn);
+			}
+			Y += RowHeight + 3.0f * Unit;
+		};
+		const auto SortedKeys = [](const auto& Map)
 		{
-			bRocketHeader = true;
-			Label(TEXT("ROCKET"), Accent, LeftX, Y);
-			Y += RowHeight;
-		}
-		if (bProbe && !bProbeHeader)
+			TArray<FString> Keys;
+			for (const auto& Entry : Map)
+			{
+				Keys.Add(OrbitalGameText(Entry.first));
+			}
+			Keys.Sort();
+			return Keys;
+		};
+		Choices(TEXT("Orbit"), SortedKeys(Data->Mission.orbits), OrbitalGameText(Snapshot.spacecraft.orbit), TEXT("o"));
+		TArray<FString> YearOptions;
+		for (const double Years : Data->Mission.plannedYearsOptions)
 		{
-			bProbeHeader = true;
-			Y += RowHeight * 0.3f;
-			Label(TEXT("SPACECRAFT"), Accent, LeftX, Y);
-			Y += RowHeight;
+			YearOptions.Add(OrbitalNumber(Years));
 		}
-		const bool bSelected = View.socket == Game->GetSelectedSocket() && View.index == Game->GetSelectedIndex();
-		DrawRect(bSelected ? RowSelected : RowColor, LeftX, Y, LeftW, RowHeight - 2.0f);
-		const FString Title = OrbitalSocketTitle(View.socket, View.index);
-		Label(Title, View.locked ? Dim : White, LeftX + Pad, Y);
-		const FString Content = View.locked ? FString(TEXT("needs its parent part"))
-			: View.partId.empty() ? FString(TEXT("- empty -")) : State->PartName(View.partId);
-		Label(Content, View.locked || View.partId.empty() ? Dim : Green, LeftX + LeftW * 0.46f, Y);
-		if (bInteractive && !View.locked)
+		Choices(TEXT("Years"), YearOptions, OrbitalNumber(Snapshot.spacecraft.years), TEXT("y"));
+		Choices(TEXT("Ground"), SortedKeys(Data->Mission.ground), OrbitalGameText(Snapshot.spacecraft.ground), TEXT("g"));
+		Choices(TEXT("Primary goal"), SortedKeys(Data->Mission.objectiveWeights), OrbitalGameText(Flow->Primary()), TEXT("m"));
+		Choices(TEXT("Difficulty"), SortedKeys(Data->Mission.budgets), OrbitalGameText(Flow->Difficulty()), TEXT("d"));
 		{
-			AddHitBox(FVector2D(LeftX, Y), FVector2D(LeftW, RowHeight - 2.0f),
-				FName(*FString::Printf(TEXT("s:%s:%d"), *OrbitalGameText(View.socket), View.index)), true);
+			double CapacityKg = 0;
+			for (const Orbital::Id& Tank : Snapshot.spacecraft.tanks)
+			{
+				const auto Found = Data->Parts.find(Tank);
+				CapacityKg += Found != Data->Parts.end() ? Found->second.capacityKg : 0.0;
+			}
+			Label(FString::Printf(TEXT("Propellant  %s / %s kg"), *OrbitalNumber(Snapshot.spacecraft.propKg),
+				*OrbitalNumber(CapacityKg)), White, MidX, Y);
+			const float StepWidth = MidW * 0.115f, StepX = MidX + MidW * 0.50f, Gap = 4.0f * Unit;
+			const TCHAR* Steps[] = {TEXT("-50"), TEXT("-10"), TEXT("+10"), TEXT("+50")};
+			for (int32 Index = 0; Index < 4; ++Index)
+			{
+				Button(Steps[Index], StepX + Index * (StepWidth + Gap), Y, StepWidth, ButtonColor,
+					FString(TEXT("f:")) + Steps[Index], bInteractive);
+			}
+			Y += RowHeight + 3.0f * Unit;
+			Label(FString::Printf(TEXT("Stage 1 engines  x%d"), Snapshot.launcher.firstEngineCount), White, MidX, Y);
+			Button(TEXT("-1"), StepX, Y, StepWidth, ButtonColor, TEXT("e:-1"), bInteractive);
+			Button(TEXT("+1"), StepX + StepWidth + Gap, Y, StepWidth, ButtonColor, TEXT("e:+1"), bInteractive);
+			Y += RowHeight + 3.0f * Unit;
 		}
-		Y += RowHeight;
+ PLAN")};
+		const float Gap = 4.0f * Unit, TabW = (BuildW - Gap * 2) / 3.0f;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			Button(StageTitles[Index], LeftX + Index * (TabW + Gap), ColumnTop, TabW, Index == Stage ? ButtonOn : ButtonColor,
+				FString::Printf(TEXT("t:%d"), Index), bInteractive && Index != Stage);
+		}
+		Label(Stage == 0 ? TEXT("SPACECRAFT") : TEXT("ROCKET WITH SPACECRAFT INSIDE"), Accent, WindowX, ColumnTop);
 	}
 
-	// ---- middle: parts for the selected socket
-	Y = ColumnTop;
-	const Orbital::Id& Selected = Game->GetSelectedSocket();
-	if (Selected.empty())
+	float Y = ContentTop;
+	const std::vector<Orbital::SocketView> Views = Flow->Screen().Sockets();
+	if (Stage < 2)
 	{
-		Label(TEXT("Click a socket on the left to choose a part for it."), Dim, MidX, Y);
-		Y += RowHeight * 1.5f;
+		// ---- left: part categories of this stage, with the number of parts fitted
+		const FOrbitalCategory* Open = nullptr;
+		for (int32 Index = 0; const FOrbitalCategory* Entry = OrbitalCategoryAt(Stage, Index); ++Index)
+		{
+			int32 Fitted = 0;
+			for (const Orbital::SocketView& View : Views)
+			{
+				Fitted += OrbitalCategoryHas(*Entry, View.socket) && !View.partId.empty() ? 1 : 0;
+			}
+			const bool bOpen = Index == Game->GetCategory();
+			Open = bOpen ? Entry : Open;
+			const float TabH = RowHeight * 1.5f;
+			DrawRect(bOpen ? RowSelected : RowColor, LeftX, Y, LeftW, TabH - 3.0f);
+			Label(Entry->Title, White, LeftX + Pad, Y + (TabH - RowHeight) * 0.5f);
+			float CountW = 0, CountH = 0;
+			const FString Count = FString::FromInt(Fitted);
+			GetTextSize(Count, CountW, CountH, Font, Scale);
+			Label(Count, Fitted > 0 ? Green : Dim, LeftX + LeftW - CountW - Pad, Y + (TabH - RowHeight) * 0.5f);
+			if (bInteractive && !bOpen)
+			{
+				AddHitBox(FVector2D(LeftX, Y), FVector2D(LeftW, TabH - 3.0f), FName(*FString::Printf(TEXT("u:%d"), Index)), true);
+			}
+			Y += TabH;
+		}
+
+		// ---- middle: sockets of the open category. Fitted ones, and one free place per kind.
+		Y = ContentTop;
+		const Orbital::Id& Selected = Game->GetSelectedSocket();
+		bool bSelectedHere = false;
+		if (Open)
+		{
+			Orbital::Id FreeShown[2];
+			for (const Orbital::SocketView& View : Views)
+			{
+				if (!OrbitalCategoryHas(*Open, View.socket))
+				{
+					continue;
+				}
+				const bool bSelected = View.socket == Selected && View.index == Game->GetSelectedIndex();
+				if (View.partId.empty() && !bSelected)
+				{
+					if (View.socket == FreeShown[0] || View.socket == FreeShown[1])
+					{
+						continue;
+					}
+					(FreeShown[0].empty() ? FreeShown[0] : FreeShown[1]) = View.socket;
+				}
+				bSelectedHere = bSelectedHere || bSelected;
+				DrawRect(bSelected ? RowSelected : RowColor, MidX, Y, MidW, RowHeight - 2.0f);
+				Label(OrbitalSocketTitle(View.socket, View.index), View.locked ? Dim : White, MidX + Pad, Y);
+				const FString Content = View.locked ? FString(TEXT("needs its parent part"))
+					: View.partId.empty() ? FString(TEXT("+ add")) : State->PartName(View.partId);
+				Label(Content, View.locked || View.partId.empty() ? Dim : Green, MidX + MidW * 0.50f, Y);
+				if (bInteractive && !View.locked)
+				{
+					AddHitBox(FVector2D(MidX, Y), FVector2D(MidW, RowHeight - 2.0f),
+						FName(*FString::Printf(TEXT("s:%s:%d"), *OrbitalGameText(View.socket), View.index)), true);
+				}
+				Y += RowHeight;
+			}
+		}
+		Y += RowHeight * 0.4f;
+
+		// ---- middle: part cards for the selected socket
+		if (!bSelectedHere)
+		{
+			Label(TEXT("Click a place above to see its parts."), Dim, MidX, Y);
+		}
+		else
+		{
+			Label(FString::Printf(TEXT("PARTS FOR: %s"), *OrbitalSocketTitle(Selected, Game->GetSelectedIndex()).ToUpper()),
+				Accent, MidX, Y);
+			Y += RowHeight;
+			const Orbital::Id Current = Flow->Screen().Model().Get(Selected, Game->GetSelectedIndex());
+			for (const Orbital::Id& PartId : Flow->Screen().PartsForSocket(Selected))
+			{
+				const bool bCurrent = PartId == Current;
+				const auto Found = Data->Parts.find(PartId);
+				// Name, then mass and cost, then up to two lines of description.
+				TArray<FString> DescriptionLines = WrapText(State->PartDescription(PartId), MidW - Pad * 3.0f, Font, Scale);
+				if (DescriptionLines.Num() > 2)
+				{
+					DescriptionLines.SetNum(2);
+					DescriptionLines[1] += TEXT(" ...");
+				}
+				const float BlockHeight = RowHeight * (2 + DescriptionLines.Num()) + 4.0f * Unit;
+				if (Y + BlockHeight > ContentBottom)
+				{
+					Label(TEXT("... more parts"), Dim, MidX, Y);
+					Y += RowHeight;
+					break;
+				}
+				DrawRect(bCurrent ? ButtonOn : RowColor, MidX, Y, MidW, BlockHeight - 4.0f);
+				Label(State->PartName(PartId), White, MidX + Pad, Y);
+				if (Found != Data->Parts.end())
+				{
+					Label(FString::Printf(TEXT("%s kg    %s M credits%s"), *OrbitalNumber(Found->second.massKg),
+						*OrbitalNumber(Found->second.costMCr), bCurrent ? TEXT("    FITTED") : TEXT("")),
+						bCurrent ? White : Accent, MidX + Pad, Y + RowHeight);
+				}
+				for (int32 LineIndex = 0; LineIndex < DescriptionLines.Num(); ++LineIndex)
+				{
+					Label(DescriptionLines[LineIndex], bCurrent ? White : Dim, MidX + Pad, Y + RowHeight * (LineIndex + 2));
+				}
+				if (bInteractive && !bCurrent)
+				{
+					AddHitBox(FVector2D(MidX, Y), FVector2D(MidW, BlockHeight - 4.0f),
+						FName(*(FString(TEXT("p:")) + OrbitalGameText(PartId))), true);
+				}
+				Y += BlockHeight;
+			}
+			if (!Current.empty() && Y + RowHeight <= ContentBottom + RowHeight)
+			{
+				Button(TEXT("Remove this part"), MidX, Y + 2.0f, MidW * 0.6f, FLinearColor(0.55f, 0.20f, 0.18f, 0.95f),
+					TEXT("x:remove"), bInteractive);
+				Y += RowHeight;
+			}
+		}
 	}
 	else
 	{
-		Label(FString::Printf(TEXT("PARTS FOR: %s"), *OrbitalSocketTitle(Selected, Game->GetSelectedIndex()).ToUpper()),
-			Accent, MidX, Y);
-		Y += RowHeight;
-		const Orbital::Id Current = Flow->Screen().Model().Get(Selected, Game->GetSelectedIndex());
-		for (const Orbital::Id& PartId : Flow->Screen().PartsForSocket(Selected))
+		// ---- mission plan: uses the whole build area
+		const float PlanX = LeftX, PlanW = BuildW;
+		const auto Choices = [&](const TCHAR* Title, const TArray<FString>& Ids, const FString& CurrentId, const TCHAR* Kind)
 		{
-			const bool bCurrent = PartId == Current;
-			const auto Found = Data->Parts.find(PartId);
-			FString Text = State->PartName(PartId);
-			if (Found != Data->Parts.end())
+			Label(Title, White, PlanX, Y);
+			const float StartX = PlanX + PlanW * 0.27f, Gap = 4.0f * Unit;
+			const float ChoiceWidth = (PlanW * 0.73f - Gap * (Ids.Num() - 1)) / FMath::Max(1, Ids.Num());
+			for (int32 Index = 0; Index < Ids.Num(); ++Index)
 			{
-				Text += FString::Printf(TEXT("   %s kg, %s M"), *OrbitalNumber(Found->second.massKg),
-					*OrbitalNumber(Found->second.costMCr));
+				const bool bOn = Ids[Index] == CurrentId;
+				Button(OrbitalChoiceLabel(Ids[Index]), StartX + Index * (ChoiceWidth + Gap), Y, ChoiceWidth, bOn ? ButtonOn : ButtonColor,
+					FString(Kind) + TEXT(":") + Ids[Index], bInteractive && !bOn);
 			}
-			// Name and numbers on the first line, the part's description under it.
-			const TArray<FString> DescriptionLines = WrapText(State->PartDescription(PartId), MidW - Pad * 3.0f, Font, Scale);
-			const float BlockHeight = RowHeight * (1 + DescriptionLines.Num());
-			DrawRect(bCurrent ? ButtonOn : RowColor, MidX, Y, MidW, BlockHeight - 2.0f);
-			Label(Text, White, MidX + Pad, Y);
-			for (int32 LineIndex = 0; LineIndex < DescriptionLines.Num(); ++LineIndex)
-			{
-				Label(DescriptionLines[LineIndex], bCurrent ? White : Dim, MidX + Pad * 2.0f, Y + RowHeight * (LineIndex + 1));
-			}
-			if (bInteractive && !bCurrent)
-			{
-				AddHitBox(FVector2D(MidX, Y), FVector2D(MidW, BlockHeight - 2.0f),
-					FName(*(FString(TEXT("p:")) + OrbitalGameText(PartId))), true);
-			}
-			Y += BlockHeight;
-		}
-		if (!Current.empty())
+			Y += RowHeight + 3.0f * Unit;
+		};
+		const auto SortedKeys = [](const auto& Map)
 		{
-			Button(TEXT("Remove this part"), MidX, Y + 2.0f, MidW * 0.5f, FLinearColor(0.55f, 0.20f, 0.18f, 0.95f),
-				TEXT("x:remove"), bInteractive);
-			Y += RowHeight;
+			TArray<FString> Keys;
+			for (const auto& Entry : Map)
+			{
+				Keys.Add(OrbitalGameText(Entry.first));
+			}
+			Keys.Sort();
+			return Keys;
+		};
+		Choices(TEXT("Orbit"), SortedKeys(Data->Mission.orbits), OrbitalGameText(Snapshot.spacecraft.orbit), TEXT("o"));
+		TArray<FString> YearOptions;
+		for (const double Years : Data->Mission.plannedYearsOptions)
+		{
+			YearOptions.Add(OrbitalNumber(Years));
 		}
-		Y += RowHeight * 0.6f;
+		Choices(TEXT("Years"), YearOptions, OrbitalNumber(Snapshot.spacecraft.years), TEXT("y"));
+		Choices(TEXT("Ground"), SortedKeys(Data->Mission.ground), OrbitalGameText(Snapshot.spacecraft.ground), TEXT("g"));
+		Choices(TEXT("Primary goal"), SortedKeys(Data->Mission.objectiveWeights), OrbitalGameText(Flow->Primary()), TEXT("m"));
+		Choices(TEXT("Difficulty"), SortedKeys(Data->Mission.budgets), OrbitalGameText(Flow->Difficulty()), TEXT("d"));
+		{
+			double CapacityKg = 0;
+			for (const Orbital::Id& Tank : Snapshot.spacecraft.tanks)
+			{
+				const auto Found = Data->Parts.find(Tank);
+				CapacityKg += Found != Data->Parts.end() ? Found->second.capacityKg : 0.0;
+			}
+			Label(FString::Printf(TEXT("Propellant  %s / %s kg"), *OrbitalNumber(Snapshot.spacecraft.propKg),
+				*OrbitalNumber(CapacityKg)), White, PlanX, Y);
+			const float StepWidth = PlanW * 0.115f, StepX = PlanX + PlanW * 0.50f, Gap = 4.0f * Unit;
+			const TCHAR* Steps[] = {TEXT("-50"), TEXT("-10"), TEXT("+10"), TEXT("+50")};
+			for (int32 Index = 0; Index < 4; ++Index)
+			{
+				Button(Steps[Index], StepX + Index * (StepWidth + Gap), Y, StepWidth, ButtonColor,
+					FString(TEXT("f:")) + Steps[Index], bInteractive);
+			}
+			Y += RowHeight + 3.0f * Unit;
+			Label(FString::Printf(TEXT("Stage 1 engines  x%d"), Snapshot.launcher.firstEngineCount), White, PlanX, Y);
+			Button(TEXT("-1"), StepX, Y, StepWidth, ButtonColor, TEXT("e:-1"), bInteractive);
+			Button(TEXT("+1"), StepX + StepWidth + Gap, Y, StepWidth, ButtonColor, TEXT("e:+1"), bInteractive);
+			Y += RowHeight + 3.0f * Unit;
+		}
 	}
 
-	// ---- middle: mission plan
-	Label(TEXT("MISSION PLAN"), Accent, MidX, Y);
-	Y += RowHeight;
-	const auto Choices = [&](const TCHAR* Title, const TArray<FString>& Ids, const FString& CurrentId, const TCHAR* Kind)
-	{
-		Label(Title, White, MidX, Y);
-		const float StartX = MidX + MidW * 0.27f, Gap = 4.0f * Unit;
-		const float ChoiceWidth = (MidW * 0.73f - Gap * (Ids.Num() - 1)) / FMath::Max(1, Ids.Num());
-		for (int32 Index = 0; Index < Ids.Num(); ++Index)
-		{
-			const bool bOn = Ids[Index] == CurrentId;
-			Button(OrbitalChoiceLabel(Ids[Index]), StartX + Index * (ChoiceWidth + Gap), Y, ChoiceWidth, bOn ? ButtonOn : ButtonColor,
-				FString(Kind) + TEXT(":") + Ids[Index], bInteractive && !bOn);
-		}
-		Y += RowHeight + 3.0f * Unit;
-	};
-	const auto SortedKeys = [](const auto& Map)
-	{
-		TArray<FString> Keys;
-		for (const auto& Entry : Map)
-		{
-			Keys.Add(OrbitalGameText(Entry.first));
-		}
-		Keys.Sort();
-		return Keys;
-	};
-	Choices(TEXT("Orbit"), SortedKeys(Data->Mission.orbits), OrbitalGameText(Snapshot.spacecraft.orbit), TEXT("o"));
-	TArray<FString> YearOptions;
-	for (const double Years : Data->Mission.plannedYearsOptions)
-	{
-		YearOptions.Add(OrbitalNumber(Years));
-	}
-	Choices(TEXT("Years"), YearOptions, OrbitalNumber(Snapshot.spacecraft.years), TEXT("y"));
-	Choices(TEXT("Ground"), SortedKeys(Data->Mission.ground), OrbitalGameText(Snapshot.spacecraft.ground), TEXT("g"));
-	Choices(TEXT("Primary goal"), SortedKeys(Data->Mission.objectiveWeights), OrbitalGameText(Flow->Primary()), TEXT("m"));
-	Choices(TEXT("Difficulty"), SortedKeys(Data->Mission.budgets), OrbitalGameText(Flow->Difficulty()), TEXT("d"));
-	{
-		double CapacityKg = 0;
-		for (const Orbital::Id& Tank : Snapshot.spacecraft.tanks)
-		{
-			const auto Found = Data->Parts.find(Tank);
-			CapacityKg += Found != Data->Parts.end() ? Found->second.capacityKg : 0.0;
-		}
-		Label(FString::Printf(TEXT("Propellant  %s / %s kg"), *OrbitalNumber(Snapshot.spacecraft.propKg),
-			*OrbitalNumber(CapacityKg)), White, MidX, Y);
-		const float StepWidth = MidW * 0.115f, StepX = MidX + MidW * 0.50f, Gap = 4.0f * Unit;
-		const TCHAR* Steps[] = {TEXT("-50"), TEXT("-10"), TEXT("+10"), TEXT("+50")};
-		for (int32 Index = 0; Index < 4; ++Index)
-		{
-			Button(Steps[Index], StepX + Index * (StepWidth + Gap), Y, StepWidth, ButtonColor,
-				FString(TEXT("f:")) + Steps[Index], bInteractive);
-		}
-		Y += RowHeight + 3.0f * Unit;
-		Label(FString::Printf(TEXT("Stage 1 engines  x%d"), Snapshot.launcher.firstEngineCount), White, MidX, Y);
-		Button(TEXT("-1"), StepX, Y, StepWidth, ButtonColor, TEXT("e:-1"), bInteractive);
-		Button(TEXT("+1"), StepX + StepWidth + Gap, Y, StepWidth, ButtonColor, TEXT("e:+1"), bInteractive);
-		Y += RowHeight + 3.0f * Unit;
-	}
-	// Last refusal (wrong socket, limit reached, launch refused).
+	// Last refusal (wrong socket, limit reached, launch refused), under the build area.
 	if (!Flow->LastChange().ok && !Flow->LastChange().reason.empty())
 	{
-		Y += RowHeight * 0.4f;
 		const FString Message = OrbitalGameText(Flow->LastChange().reason)
 			+ (Flow->LastChange().code.empty() ? FString() : TEXT("  (") + OrbitalGameText(Flow->LastChange().code) + TEXT(")"));
-		for (const FString& Line : WrapText(Message, MidW, Font, Scale))
+		float NoteY = ContentBottom + RowHeight * 0.3f;
+		for (const FString& Line : WrapText(Message, BuildW, Font, Scale))
 		{
-			Label(Line, Amber, MidX, Y);
-			Y += RowHeight;
+			Label(Line, Amber, LeftX, NoteY);
+			NoteY += RowHeight;
 		}
 	}
 

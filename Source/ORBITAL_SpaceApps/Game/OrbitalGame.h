@@ -6,9 +6,10 @@
 // - AOrbitalGameDirector: one per L_Mission world. Shows the assembly screen, starts
 //   Muhammet's AOrbitalFlightPlayback::StartFlight with the launch snapshot, and listens to
 //   OnRedesignRequested to return to assembly.
-// - AOrbitalAssemblyHUD: the assembly screen, drawn in C++ on the HUD canvas (same approach as
-//   the flight HUD): socket list, parts for the selected socket, mission plan, dashboard rows
-//   (green / amber / red), review list, reference-case buttons and Launch.
+// - AOrbitalAssemblyHUD: the builder screen, drawn in C++ on the HUD canvas (same approach as
+//   the flight HUD): build stages (spacecraft, rocket, mission plan), part categories, part cards,
+//   a window onto the live 3D model, dashboard rows (green / amber / red), review list,
+//   reference-case buttons and Launch.
 // All rules and numbers come from the plain C++ headers; this file only draws and forwards clicks.
 //
 // Console: orbital.Game 0 turns this off and gives the reference flights back (orbital.FlightCase).
@@ -22,6 +23,7 @@
 #include "../Assembly/OrbitalGameFlow.h"
 #include "OrbitalGame.generated.h"
 
+class ACameraActor;
 class ADirectionalLight;
 class AOrbitalFlightPlayback;
 class APlayerController;
@@ -91,15 +93,21 @@ public:
 	// A click on the assembly screen. Actions are "<kind>:<argument>", see OrbitalGame.cpp.
 	void HandleAction(const FString& Action);
 
-	// Socket selected in the left column ("" = none).
+	// Socket selected in the builder ("" = none).
 	const Orbital::Id& GetSelectedSocket() const { return SelectedSocket; }
 	int32 GetSelectedIndex() const { return SelectedIndex; }
+	// Builder tabs: stage 0 spacecraft, 1 rocket, 2 mission plan; category within the stage.
+	int32 GetBuildStage() const { return BuildStage; }
+	int32 GetCategory() const { return Category; }
 
 private:
 	void BeginFlight();
 	void HandleRedesign();
 	// Visible Sun disc: a glowing sphere kept far from the camera, opposite the level's directional light.
 	void UpdateSun(APlayerController* Player);
+	// Live 3D model of the current design, seen through the window in the builder screen.
+	void UpdatePreview(APlayerController& Player, Orbital::GameFlow& Flow, float DeltaSeconds);
+	void ClearPreview();
 
 	UPROPERTY()
 	TObjectPtr<AOrbitalFlightPlayback> Flight;
@@ -109,8 +117,17 @@ private:
 	TWeakObjectPtr<ADirectionalLight> SunLight;
 	bool bSunTried = false;
 
+	UPROPERTY()
+	TObjectPtr<AOrbitalFlightPlayback> PreviewVehicle;
+
+	UPROPERTY()
+	TObjectPtr<ACameraActor> PreviewCamera;
+	std::string PreviewKey; // design the preview was built from
+	double PreviewYaw = 35.0;
+
 	Orbital::Id SelectedSocket;
 	int32 SelectedIndex = -1;
+	int32 BuildStage = 0, Category = 0;
 	bool bAssemblyHudSet = false;
 };
 

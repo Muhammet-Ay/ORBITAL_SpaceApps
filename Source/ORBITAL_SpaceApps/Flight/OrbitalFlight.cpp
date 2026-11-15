@@ -544,6 +544,79 @@ bool AOrbitalFlightPlayback::BuildVehicleFromParts(const Orbital::SpacecraftDesi
 	return true;
 }
 
+// ---------------------------------------------------------------- assembly preview
+
+bool AOrbitalFlightPlayback::BuildPreview(const Orbital::Catalog& Catalog, const Orbital::SpacecraftDesign& Spacecraft,
+	const Orbital::LauncherDesign& Launcher, bool bProbeOnly)
+{
+	if (bPlaying || Stage1.Component)
+	{
+		return false; // one build per actor
+	}
+	PadCm = FVector(0, 0, 600);
+	FHitResult Hit;
+	FCollisionQueryParams Query(FName(TEXT("OrbitalPad")), false, this);
+	if (GetWorld() && GetWorld()->LineTraceSingleByChannel(Hit, FVector(0, 0, 50000), FVector(0, 0, -5000), ECC_Visibility, Query))
+	{
+		PadCm = Hit.Location;
+	}
+	SetActorLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+	if (!BuildVehicleFromParts(Spacecraft, Launcher))
+	{
+		BuildVehicle(Catalog, Spacecraft, Launcher);
+	}
+	// The spacecraft alone stands on the pad; the stack stands on its engines.
+	const FVector Base = bProbeOnly ? PadCm - FVector(0, 0, Stage2TopM * 100.0) : PadCm;
+	SetActorLocationAndRotation(Base, FRotator::ZeroRotator);
+	for (FGroup* Group : {&Stage1, &Stage2, &Fairing})
+	{
+		if (Group->Component)
+		{
+			Group->Component->SetVisibility(!bProbeOnly, true);
+		}
+	}
+	if (Panels.Component)
+	{
+		Panels.Component->SetVisibility(bProbeOnly, true);
+	}
+	if (bProbeOnly)
+	{
+		PreviewFocusCm = Base + FVector(0, 0, (Stage2TopM + ProbeHeightM / 2.0) * 100.0);
+		PreviewSizeM = FMath::Max(ProbeSpanM, 2.5);
+	}
+	else
+	{
+		PreviewFocusCm = Base + FVector(0, 0, TotalHeightM * 50.0);
+		PreviewSizeM = FMath::Max(TotalHeightM, 6.0);
+	}
+	return true;
+}
+
+void AOrbitalFlightPlayback::LightPreview(const FVector& From)
+{
+	if (FillLight)
+	{
+		const double DistanceCm = FMath::Max(FVector::Dist(From, PreviewFocusCm), 100.0);
+		const double DistanceM = DistanceCm / 100.0;
+		FillLight->SetWorldLocation(From);
+		FillLight->SetAttenuationRadius(static_cast<float>(DistanceCm * 5.0));
+		FillLight->SetIntensity(static_cast<float>(3.0 * DistanceM * DistanceM));
+	}
+}
+
+void AOrbitalFlightPlayback::ClearPreview()
+{
+	for (AActor* Part : PartActors)
+	{
+		if (Part)
+		{
+			Part->Destroy();
+		}
+	}
+	PartActors.Reset();
+	Destroy();
+}
+
 // ---------------------------------------------------------------- start
 
 bool AOrbitalFlightPlayback::StartFlight(const FOrbitalAssemblyData& Data, const Orbital::AssemblySnapshot& Snapshot,

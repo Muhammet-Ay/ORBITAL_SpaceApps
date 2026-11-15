@@ -68,6 +68,16 @@ public:
 		const Orbital::SpacecraftDesign& Spacecraft, const Orbital::LauncherDesign& Launcher,
 		const Orbital::MissionResult& Result);
 
+	// Assembly screen preview: builds the vehicle from the current design (empty sockets stay empty)
+	// and leaves it standing on the pad. No timeline, no sound. bProbeOnly shows the spacecraft
+	// alone with its solar arrays out; otherwise the whole stack with the fairing closed.
+	bool BuildPreview(const Orbital::Catalog& Catalog, const Orbital::SpacecraftDesign& Spacecraft,
+		const Orbital::LauncherDesign& Launcher, bool bProbeOnly);
+	FVector GetPreviewFocus() const { return PreviewFocusCm; } // world position to look at
+	double GetPreviewSizeM() const { return PreviewSizeM; }    // largest dimension to fit in view
+	void LightPreview(const FVector& From);                    // soft light from the camera side
+	void ClearPreview();                                       // removes the preview parts and this actor
+
 	// Reference designs from TEST_CASES.md: TC-A, TC-B, TC-D, TC-E, TC-F.
 	bool StartCase(const FString& CaseName);
 
@@ -165,6 +175,8 @@ private:
 
 	EMode Mode = EMode::Idle;
 	FVector PadCm = FVector::ZeroVector;
+	FVector PreviewFocusCm = FVector::ZeroVector;
+	double PreviewSizeM = 3.0;
 	FVector AscentEndCm = FVector::ZeroVector;
 	FVector DriftCm = FVector::ZeroVector;
 	FVector FocusLocalCm = FVector::ZeroVector;
