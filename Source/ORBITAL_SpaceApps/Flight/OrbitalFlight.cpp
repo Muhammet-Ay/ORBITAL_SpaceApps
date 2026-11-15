@@ -50,11 +50,30 @@ const double MinEventDwellS = 4.0;
 const double RocketDiameterM = 3.7;
 const double AspectRatio = 16.0 / 9.0;
 
-// Ascent view (display only). The scene is 1:100, so these heights are well above the real ones;
-// they are chosen so Earth reads as a planet: at 15 km the horizon is curved and the pad is gone,
-// at 30 km the view is clearly above Earth. Timeline times and results do not use them.
-const double SeparationHeightCm = 1500000.0;
-const double FairingHeightCm = 3000000.0;
+// Ascent view (display only). Heights are in true proportion to Earth: the level's Earth has a
+// radius of 6 371 000 cm for 6371 km, so 1 real km is 1000 cm. The vehicle is drawn about 100x
+// true size so it stays visible. Timeline times and results do not use any of this.
+const double SceneCmPerRealKm = 1000.0;
+const double SeparationHeightCm = 70.0 * SceneCmPerRealKm;  // typical first-stage cutoff
+const double FairingHeightCm = 110.0 * SceneCmPerRealKm;    // fairing off above the dense air
+const double VerticalRiseCm = 3000.0;                       // straight up for the first 30 m
+// Gravity turn: pitch from vertical, by height. Vertical first, then a smooth pitch-over.
+double TurnPitchDeg(double AltitudeCm, double ParkingCm)
+{
+	if (AltitudeCm <= VerticalRiseCm)
+	{
+		return 0.0;
+	}
+	if (AltitudeCm <= SeparationHeightCm)
+	{
+		return 55.0 * FMath::SmoothStep(VerticalRiseCm, SeparationHeightCm, AltitudeCm);
+	}
+	if (AltitudeCm <= FairingHeightCm)
+	{
+		return 55.0 + 20.0 * FMath::SmoothStep(SeparationHeightCm, FairingHeightCm, AltitudeCm);
+	}
+	return 75.0 + 15.0 * FMath::SmoothStep(FairingHeightCm, FMath::Max(ParkingCm, FairingHeightCm + 1.0), AltitudeCm);
+}
 // Where Earth's limb sits in the frame: this fraction of the half-height above the centre.
 const double HorizonAboveCentre = 0.4;
 
@@ -911,6 +930,57 @@ ACameraActor* AOrbitalFlightPlayback::FindCamera(const Orbital::TimelineEvent& E
 	return nullptr;
 }
 
+// Sets up the frame of the ascent path: Earth's centre, the pad's distance from it, and a downrange
+// direction across the liftoff camera's view so the pitch-over is seen side-on.
+void AOrbitalFlightPlayback::InitAscentPath()
+{
+	double EarthRadiusCm = 0.0;
+	if (!FindEarth(GetWorld(), EarthCentreCm, EarthRadiusCm))
+	{
+		EarthCentreCm = PadCm - FVector(0, 0, 6371000.0);
+	}
+	PadRadiusCm = FVector::Dist(PadCm, EarthCentreCm);
+	PathUp = (PadCm - EarthCentreCm).GetSafeNormal();
+	FVector Across = FVector::RightVector;
+	if (!Show.empty())
+	{
+		if (const ACameraActor* Liftoff = FindCamera(Show[0]))
+		{
+			Across = Liftoff->GetActorRightVector();
+		}
+	}
+	PathDownrange = (Across - PathUp * FVector::DotProduct(Across, PathUp)).GetSafeNormal();
+	if (PathDownrange.IsNearlyZero())
+	{
+		PathDownrange = FVector::CrossProduct(PathUp, FVector::RightVector).GetSafeNormal();
+	}
+	bPathReady = true;
+}
+
+// Vehicle base pose at a height on the gravity-turn path. The downrange distance is the integral of
+// tan(pitch) over height, so the path bends over Earth's curved surface and the nose follows it.
+// ForcePitchDeg >= 0 overrides only the attitude (parking orbit is drawn level).
+FTransform AOrbitalFlightPlayback::AscentPose(double AltitudeCm, double ForcePitchDeg) const
+{
+	const double ParkingCm = 200.0 * SceneCmPerRealKm;
+	const int32 Steps = 96;
+	double Downrange = 0.0;
+	for (int32 Step = 0; Step < Steps; ++Step)
+	{
+		const double H = AltitudeCm * (Step + 0.5) / Steps;
+		const double StepPitch = FMath::Min(TurnPitchDeg(H, ParkingCm), 84.0); // tan grows without bound at 90
+		Downrange += FMath::Tan(FMath::DegreesToRadians(StepPitch)) * AltitudeCm / Steps;
+	}
+	const double Angle = Downrange / PadRadiusCm;
+	const FVector Radial = PathUp * FMath::Cos(Angle) + PathDownrange * FMath::Sin(Angle);
+	const FVector Along = PathDownrange * FMath::Cos(Angle) - PathUp * FMath::Sin(Angle);
+	const double Pitch = FMath::DegreesToRadians(ForcePitchDeg >= 0.0 ? ForcePitchDeg : TurnPitchDeg(AltitudeCm, ParkingCm));
+	const FVector Axis = Radial * FMath::Cos(Pitch) + Along * FMath::Sin(Pitch);
+	const FVector Side = FVector::CrossProduct(Radial, Along);
+	const FRotator Rotation = FRotationMatrix::MakeFromZY(Axis, Side).Rotator();
+	return FTransform(Rotation, EarthCentreCm + Radial * (PadRadiusCm + AltitudeCm));
+}
+
 // Ascent view: moves a level camera (at runtime only) so it looks at the vehicle with Earth's curved
 // limb in the upper part of the frame. Keeps the camera's compass direction from the level and a
 // distance at which FrameSubject keeps the level's field of view. Display only.
@@ -918,9 +988,15 @@ void AOrbitalFlightPlayback::PlaceAboveEarth(ACameraActor& Camera, const FVector
 {
 	FVector EarthCentre;
 	double EarthRadiusCm = 0.0;
+	if (!FindEarth(GetWorld(), EarthCentre, EarthRadiusCm))
+	{
+		return;
+	}
+	// "Up" and "level" are taken at the vehicle, which may be far downrange over the curved surface.
+	const FVector LocalUp = (FocusWorld - EarthCentre).GetSafeNormal();
 	FVector Across = Camera.GetActorForwardVector();
-	Across.Z = 0.0;
-	if (!FindEarth(GetWorld(), EarthCentre, EarthRadiusCm) || !Across.Normalize())
+	Across -= LocalUp * FVector::DotProduct(Across, LocalUp);
+	if (!Across.Normalize())
 	{
 		return;
 	}
@@ -931,7 +1007,7 @@ void AOrbitalFlightPlayback::PlaceAboveEarth(ACameraActor& Camera, const FVector
 	const double RadiusHere = FMath::Max(FVector::Dist(FocusWorld, EarthCentre), EarthRadiusCm);
 	const double Dip = FMath::Acos(EarthRadiusCm / RadiusHere); // horizon angle below level
 	const double Pitch = -(Dip + HorizonAboveCentre * HalfVertical);
-	const FVector Look = Across * FMath::Cos(Pitch) + FVector::UpVector * FMath::Sin(Pitch);
+	const FVector Look = Across * FMath::Cos(Pitch) + LocalUp * FMath::Sin(Pitch);
 	const double Distance = (FocusSizeM * 100.0 / FocusFraction / 2.0) * AspectRatio / FMath::Tan(Fov / 2.0);
 	if (Camera.GetRootComponent())
 	{
@@ -1042,8 +1118,7 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	{
 		SetActorLocationAndRotation(PadCm, FRotator::ZeroRotator);
 		SetPadVisible(GetWorld(), true);
-		// Ends where stage separation shows the vehicle, so the cut does not jump.
-		AscentEndCm = PadCm + FVector(0, 0, SeparationHeightCm - Stage1TopM * 100.0);
+		InitAscentPath(); // the climb ends where stage separation shows the vehicle, so the cut does not jump
 		Mode = EMode::Ascent;
 		FocusLocalCm = FVector(0, 0, TotalHeightM * 50.0);
 		FocusSizeM = TotalHeightM;
@@ -1053,11 +1128,15 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	else if (bSeparation)
 	{
 		SetPadVisible(GetWorld(), false);
-		const FVector Focus = PadCm + FVector(0, 0, SeparationHeightCm);
-		SetActorLocationAndRotation(Focus - FVector(0, 0, Stage1TopM * 100.0), FRotator::ZeroRotator);
-		MakeDebris(Stage1, FVector(0, 0, -300.0), FRotator(1.5, 0, 0.8));
+		if (!bPathReady)
+		{
+			InitAscentPath();
+		}
+		SetActorTransform(AscentPose(SeparationHeightCm));
+		const FVector Focus = GetActorTransform().TransformPosition(FVector(0, 0, Stage1TopM * 100.0));
+		MakeDebris(Stage1, GetActorUpVector() * -300.0, FRotator(1.5, 0, 0.8));
 		Mode = EMode::Tracked;
-		DriftCm = FVector(0, 0, 300.0);
+		DriftCm = GetActorUpVector() * 300.0;
 		FocusLocalCm = FVector(0, 0, Stage1TopM * 100.0);
 		FocusSizeM = TotalHeightM + 10.0;
 		FocusFraction = 0.6;
@@ -1070,12 +1149,16 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	else if (bFairingEvent)
 	{
 		SetPadVisible(GetWorld(), false);
-		const FVector Focus = PadCm + FVector(0, 0, FairingHeightCm);
-		SetActorLocationAndRotation(Focus - ProbeFocus, FRotator::ZeroRotator);
+		if (!bPathReady)
+		{
+			InitAscentPath();
+		}
+		SetActorTransform(AscentPose(FairingHeightCm));
+		const FVector Focus = GetActorTransform().TransformPosition(ProbeFocus);
 		const FVector Sideways = Camera ? Camera->GetActorRightVector() : FVector::RightVector;
-		MakeDebris(Fairing, Sideways * 180.0 + FVector(0, 0, -60.0), FRotator(0, 0, 6.0));
+		MakeDebris(Fairing, Sideways * 180.0 - GetActorUpVector() * 60.0, FRotator(0, 0, 6.0));
 		Mode = EMode::Tracked;
-		DriftCm = FVector(0, 0, 100.0);
+		DriftCm = GetActorUpVector() * 100.0;
 		FocusLocalCm = ProbeFocus;
 		FocusSizeM = FairingHeightM + 8.0;
 		FocusFraction = 0.6;
@@ -1095,8 +1178,21 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	{
 		if (bParking)
 		{
+			// True-proportion parking orbit (timeline altitude, e.g. "200 km"), drawn level with Earth.
 			const double UpperLength = Stage2TopM + ProbeHeightM - Stage1TopM;
-			PlaceInFrontOfCamera(*Camera, FVector(0, 0, (Stage1TopM + UpperLength / 2.0) * 100.0), UpperLength, 0.3);
+			if (!bPathReady)
+			{
+				InitAscentPath();
+			}
+			const double ParkingKm = FCString::Atod(*ToFString(Event.altitude));
+			SetActorTransform(AscentPose((ParkingKm > 0 ? ParkingKm : 200.0) * SceneCmPerRealKm, 90.0));
+			FocusLocalCm = FVector(0, 0, (Stage1TopM + UpperLength / 2.0) * 100.0);
+			FocusSizeM = UpperLength;
+			FocusFraction = 0.3;
+			Mode = EMode::Tracked;
+			DriftCm = GetActorUpVector() * 200.0;
+			PlaceAboveEarth(*Camera, GetActorTransform().TransformPosition(FocusLocalCm));
+			SetFill(true, Camera->GetActorLocation(), FVector::Dist(Camera->GetActorLocation(), GetActorLocation()));
 		}
 		else
 		{
@@ -1182,7 +1278,7 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 		const double Start = Show[CurrentEvent].displayTimeS;
 		const double End = CurrentEvent + 1 < Count ? Show[CurrentEvent + 1].displayTimeS : Start + 20.0;
 		const double U = FMath::Clamp((DisplayNow - Start) / FMath::Max(End - Start, 0.1), 0.0, 1.0);
-		SetActorLocation(FMath::Lerp(PadCm, AscentEndCm, U * U * U));
+		SetActorTransform(AscentPose(SeparationHeightCm * U * U * U));
 	}
 	else if (Mode == EMode::Tracked || Mode == EMode::Anchored)
 	{

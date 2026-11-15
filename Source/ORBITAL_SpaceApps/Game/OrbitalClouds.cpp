@@ -13,9 +13,11 @@ DEFINE_LOG_CATEGORY_STATIC(LogOrbitalClouds, Log, All);
 
 namespace
 {
-	// Earth's radius in the level is 6 371 000 cm (1:100 scale). Real clouds sit a few km up;
-	// at 1.003 the layer is about 190 m (scene) above the pad, so the rocket climbs through it.
-	const double ShellScale = 1.003;
+	// True proportion: Earth's radius in the level is 6 371 000 cm for 6371 km, so 10 km of real
+	// altitude (typical cloud tops) is R * 10 / 6371 = 100 m in the scene. The rocket and pad are
+	// drawn about 100x true size, so the layer sits just above the tower top.
+	const double CloudAltitudeKm = 10.0;
+	const double RealEarthRadiusKm = 6371.0;
 	const double DriftDegPerSecond = 0.15; // slow drift; display only
 	// Latitude of the cloud map that sits over the pad. The equator and poles of the NASA map are
 	// often clear there; the mid-latitude storm belt (about 55 degrees) is cloudy at most longitudes.
@@ -87,8 +89,8 @@ void UOrbitalCloudsSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 	const double EarthRadius = Earth->GetStaticMeshComponent()->GetStaticMesh()->GetBounds().BoxExtent.X
 		* Earth->GetActorScale3D().X;
 	const double SphereRadius = Sphere->GetBounds().BoxExtent.X;
-	CloudShell->SetActorScale3D(FVector(EarthRadius * ShellScale / SphereRadius));
-	ShellRadius = EarthRadius * ShellScale;
+	ShellRadius = EarthRadius * (1.0 + CloudAltitudeKm / RealEarthRadiusKm);
+	CloudShell->SetActorScale3D(FVector(ShellRadius / SphereRadius));
 }
 
 void UOrbitalCloudsSubsystem::Tick(float DeltaTime)

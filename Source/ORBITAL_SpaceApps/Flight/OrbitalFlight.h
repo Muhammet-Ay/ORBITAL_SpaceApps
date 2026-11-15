@@ -136,6 +136,8 @@ private:
 	void MakeDebris(FGroup& Group, const FVector& VelocityCm, const FRotator& SpinDeg);
 	ACameraActor* FindCamera(const Orbital::TimelineEvent& Event) const;
 	void PlaceAboveEarth(ACameraActor& Camera, const FVector& FocusWorld);
+	void InitAscentPath();
+	FTransform AscentPose(double AltitudeCm, double ForcePitchDeg = -1.0) const;
 	void PlaceInFrontOfCamera(const ACameraActor& Camera, const FVector& FocusLocalCm, double SizeM, double Fraction);
 	void FrameSubject(ACameraActor& Camera, const FVector& FocusWorld, double SizeM, double VerticalFraction);
 	void SetFill(bool bOn, const FVector& Location = FVector::ZeroVector, double DistanceCm = 0);
@@ -177,7 +179,11 @@ private:
 	FVector PadCm = FVector::ZeroVector;
 	FVector PreviewFocusCm = FVector::ZeroVector;
 	double PreviewSizeM = 3.0;
-	FVector AscentEndCm = FVector::ZeroVector;
+	// Ascent path (display only): curved gravity turn over Earth's surface, see AscentPose.
+	bool bPathReady = false;
+	FVector EarthCentreCm = FVector::ZeroVector;
+	double PadRadiusCm = 0.0;
+	FVector PathUp = FVector::UpVector, PathDownrange = FVector::ForwardVector;
 	FVector DriftCm = FVector::ZeroVector;
 	FVector FocusLocalCm = FVector::ZeroVector;
 	double FocusSizeM = 30, FocusFraction = 0.5;
