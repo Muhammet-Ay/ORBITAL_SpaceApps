@@ -12,6 +12,7 @@
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
@@ -48,6 +49,46 @@ namespace
 const double MinEventDwellS = 4.0;
 const double RocketDiameterM = 3.7;
 const double AspectRatio = 16.0 / 9.0;
+
+// Ascent view (display only). The scene is 1:100, so these heights are well above the real ones;
+// they are chosen so Earth reads as a planet: at 15 km the horizon is curved and the pad is gone,
+// at 30 km the view is clearly above Earth. Timeline times and results do not use them.
+const double SeparationHeightCm = 1500000.0;
+const double FairingHeightCm = 3000000.0;
+// Where Earth's limb sits in the frame: this fraction of the half-height above the centre.
+const double HorizonAboveCentre = 0.4;
+
+// Earth's centre and radius, from the static mesh actor that uses M_Earth (labels are not kept in
+// packaged builds). False if it is missing.
+bool FindEarth(UWorld* World, FVector& OutCentre, double& OutRadiusCm)
+{
+	for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+	{
+		const UStaticMeshComponent* Mesh = It->GetStaticMeshComponent();
+		const UMaterialInterface* Material = Mesh ? Mesh->GetMaterial(0) : nullptr;
+		if (Material && Material->GetName() == TEXT("M_Earth") && Mesh->GetStaticMesh())
+		{
+			OutCentre = It->GetActorLocation();
+			OutRadiusCm = Mesh->GetStaticMesh()->GetBounds().BoxExtent.X * It->GetActorScale3D().X;
+			return true;
+		}
+	}
+	return false;
+}
+
+// Shows or hides the launch pad (every static mesh actor with an M_Pad_* material).
+void SetPadVisible(UWorld* World, bool bVisible)
+{
+	for (TActorIterator<AStaticMeshActor> It(World); It; ++It)
+	{
+		const UStaticMeshComponent* Mesh = It->GetStaticMeshComponent();
+		const UMaterialInterface* Material = Mesh ? Mesh->GetMaterial(0) : nullptr;
+		if (Material && Material->GetName().StartsWith(TEXT("M_Pad_")))
+		{
+			It->SetActorHiddenInGame(!bVisible);
+		}
+	}
+}
 
 // Source: ORBITAL_TIMELINE_COPY_v2.1.md (approved copy). Keep in sync with that file.
 struct FTimelineCopy
@@ -870,23 +911,33 @@ ACameraActor* AOrbitalFlightPlayback::FindCamera(const Orbital::TimelineEvent& E
 	return nullptr;
 }
 
-// Point on the vertical line above the pad that the camera looks at.
-bool AOrbitalFlightPlayback::AscentAnchor(const ACameraActor& Camera, FVector& OutAnchor) const
+// Ascent view: moves a level camera (at runtime only) so it looks at the vehicle with Earth's curved
+// limb in the upper part of the frame. Keeps the camera's compass direction from the level and a
+// distance at which FrameSubject keeps the level's field of view. Display only.
+void AOrbitalFlightPlayback::PlaceAboveEarth(ACameraActor& Camera, const FVector& FocusWorld)
 {
-	const FVector Location = Camera.GetActorLocation();
-	const FVector Forward = Camera.GetActorForwardVector();
-	const double Denominator = Forward.X * Forward.X + Forward.Y * Forward.Y;
-	if (Denominator < 1.0e-6)
+	FVector EarthCentre;
+	double EarthRadiusCm = 0.0;
+	FVector Across = Camera.GetActorForwardVector();
+	Across.Z = 0.0;
+	if (!FindEarth(GetWorld(), EarthCentre, EarthRadiusCm) || !Across.Normalize())
 	{
-		return false;
+		return;
 	}
-	const double Along = -((Location.X - PadCm.X) * Forward.X + (Location.Y - PadCm.Y) * Forward.Y) / Denominator;
-	if (Along <= 0)
+	UCameraComponent* Lens = Camera.GetCameraComponent();
+	const float* Original = OriginalFov.Find(&Camera);
+	const double Fov = FMath::DegreesToRadians(Original ? *Original : Lens->FieldOfView);
+	const double HalfVertical = FMath::Atan(FMath::Tan(Fov / 2.0) / AspectRatio);
+	const double RadiusHere = FMath::Max(FVector::Dist(FocusWorld, EarthCentre), EarthRadiusCm);
+	const double Dip = FMath::Acos(EarthRadiusCm / RadiusHere); // horizon angle below level
+	const double Pitch = -(Dip + HorizonAboveCentre * HalfVertical);
+	const FVector Look = Across * FMath::Cos(Pitch) + FVector::UpVector * FMath::Sin(Pitch);
+	const double Distance = (FocusSizeM * 100.0 / FocusFraction / 2.0) * AspectRatio / FMath::Tan(Fov / 2.0);
+	if (Camera.GetRootComponent())
 	{
-		return false;
+		Camera.GetRootComponent()->SetMobility(EComponentMobility::Movable);
 	}
-	OutAnchor = FVector(PadCm.X, PadCm.Y, Location.Z + Along * Forward.Z);
-	return true;
+	Camera.SetActorLocationAndRotation(FocusWorld - Look * Distance, Look.Rotation());
 }
 
 void AOrbitalFlightPlayback::SetFill(bool bOn, const FVector& Location, double DistanceCm)
@@ -987,19 +1038,12 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	}
 
 	const FVector ProbeFocus(0, 0, (Stage2TopM + ProbeHeightM / 2.0) * 100.0);
-	FVector Anchor;
 	if (bLiftoff)
 	{
 		SetActorLocationAndRotation(PadCm, FRotator::ZeroRotator);
-		AscentEndCm = PadCm + FVector(0, 0, 700000.0);
-		if (Index + 1 < static_cast<int32>(Show.size()))
-		{
-			const ACameraActor* Next = FindCamera(Show[Index + 1]);
-			if (Next && AscentAnchor(*Next, Anchor))
-			{
-				AscentEndCm = Anchor - FVector(0, 0, Stage1TopM * 100.0);
-			}
-		}
+		SetPadVisible(GetWorld(), true);
+		// Ends where stage separation shows the vehicle, so the cut does not jump.
+		AscentEndCm = PadCm + FVector(0, 0, SeparationHeightCm - Stage1TopM * 100.0);
 		Mode = EMode::Ascent;
 		FocusLocalCm = FVector(0, 0, TotalHeightM * 50.0);
 		FocusSizeM = TotalHeightM;
@@ -1008,10 +1052,9 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	}
 	else if (bSeparation)
 	{
-		if (Camera && AscentAnchor(*Camera, Anchor))
-		{
-			SetActorLocationAndRotation(Anchor - FVector(0, 0, Stage1TopM * 100.0), FRotator::ZeroRotator);
-		}
+		SetPadVisible(GetWorld(), false);
+		const FVector Focus = PadCm + FVector(0, 0, SeparationHeightCm);
+		SetActorLocationAndRotation(Focus - FVector(0, 0, Stage1TopM * 100.0), FRotator::ZeroRotator);
 		MakeDebris(Stage1, FVector(0, 0, -300.0), FRotator(1.5, 0, 0.8));
 		Mode = EMode::Tracked;
 		DriftCm = FVector(0, 0, 300.0);
@@ -1020,15 +1063,15 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 		FocusFraction = 0.6;
 		if (Camera)
 		{
+			PlaceAboveEarth(*Camera, Focus);
 			SetFill(true, Camera->GetActorLocation(), FVector::Dist(Camera->GetActorLocation(), GetActorLocation()));
 		}
 	}
 	else if (bFairingEvent)
 	{
-		if (Camera && AscentAnchor(*Camera, Anchor))
-		{
-			SetActorLocationAndRotation(Anchor - ProbeFocus, FRotator::ZeroRotator);
-		}
+		SetPadVisible(GetWorld(), false);
+		const FVector Focus = PadCm + FVector(0, 0, FairingHeightCm);
+		SetActorLocationAndRotation(Focus - ProbeFocus, FRotator::ZeroRotator);
 		const FVector Sideways = Camera ? Camera->GetActorRightVector() : FVector::RightVector;
 		MakeDebris(Fairing, Sideways * 180.0 + FVector(0, 0, -60.0), FRotator(0, 0, 6.0));
 		Mode = EMode::Tracked;
@@ -1038,6 +1081,7 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 		FocusFraction = 0.6;
 		if (Camera)
 		{
+			PlaceAboveEarth(*Camera, Focus);
 			SetFill(true, Camera->GetActorLocation(), FVector::Dist(Camera->GetActorLocation(), GetActorLocation()));
 		}
 	}

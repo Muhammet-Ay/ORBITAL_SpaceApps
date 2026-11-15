@@ -135,7 +135,7 @@ private:
 	void SetAttached(FGroup& Group, bool bAttached);
 	void MakeDebris(FGroup& Group, const FVector& VelocityCm, const FRotator& SpinDeg);
 	ACameraActor* FindCamera(const Orbital::TimelineEvent& Event) const;
-	bool AscentAnchor(const ACameraActor& Camera, FVector& OutAnchor) const;
+	void PlaceAboveEarth(ACameraActor& Camera, const FVector& FocusWorld);
 	void PlaceInFrontOfCamera(const ACameraActor& Camera, const FVector& FocusLocalCm, double SizeM, double Fraction);
 	void FrameSubject(ACameraActor& Camera, const FVector& FocusWorld, double SizeM, double VerticalFraction);
 	void SetFill(bool bOn, const FVector& Location = FVector::ZeroVector, double DistanceCm = 0);
