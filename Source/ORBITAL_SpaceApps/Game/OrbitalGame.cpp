@@ -1408,7 +1408,7 @@ bool AOrbitalAssemblyHUD::DrawMenu(UOrbitalGameStateSubsystem& State, float Widt
 					Y += RowHeight;
 				}
 				Y += RowHeight * 0.6f;
-				DrawText(FString::Printf(TEXT("Primary goal: %s"), *OrbitalGameText(Card.primary)), Accent, X + Inset, Y, Font, Scale);
+				DrawText(FString::Printf(TEXT("Primary goal: %s"), *OrbitalChoiceLabel(OrbitalGameText(Card.primary))), Accent, X + Inset, Y, Font, Scale);
 				Y += RowHeight;
 				const auto Budget = Data->Mission.budgets.find(Card.difficulty);
 				if (Budget != Data->Mission.budgets.end())
