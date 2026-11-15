@@ -123,7 +123,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<ACameraActor> PreviewCamera;
 	std::string PreviewKey; // design the preview was built from
-	double PreviewYaw = 35.0;
+	double PreviewYaw = 35.0, PreviewSpin = 0.0; // camera side; model turn angle
 
 	Orbital::Id SelectedSocket;
 	int32 SelectedIndex = -1;

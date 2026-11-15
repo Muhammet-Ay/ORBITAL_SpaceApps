@@ -238,6 +238,8 @@ void AOrbitalFlightPlayback::BuildVehicle(const Orbital::Catalog& Catalog,
 	const Orbital::Part* SecondTank = FindPart(Catalog, Launcher.secondTank);
 	const double Engine2Height = 2.0;
 	Engine(S2, 0, 0, 0.0, 1.2, Engine2Height);
+	// Interstage: a skirt on top of stage 1 that covers the stage 2 engine until separation.
+	AddShape(S1, EShape::Cylinder, FVector(0, 0, Stage1TopM + Engine2Height / 2.0), FVector(D, D, Engine2Height), Grey);
 	const double Tank2 = FMath::Clamp((SecondTank ? SecondTank->capacityKg : 7000.0) / 330.0 / Area, 2.5, 12.0);
 	AddShape(S2, EShape::Cylinder, FVector(0, 0, Engine2Height + Tank2 / 2.0), FVector(D, D, Tank2), White);
 	AddShape(S2, EShape::Cylinder, FVector(0, 0, Engine2Height + Tank2 + 0.15), FVector(D * 1.01, D * 1.01, 0.3), Black);
@@ -409,6 +411,12 @@ bool AOrbitalFlightPlayback::BuildVehicleFromParts(const Orbital::SpacecraftDesi
 	USceneComponent* S2 = MakeGroup(Stage2, TEXT("Stage2"), Stage1TopM);
 	SpawnPart(Lv.secondEngine, S2, FVector::ZeroVector, FRotator::ZeroRotator, &Size);
 	Z = Size.Z;
+	if (Z > 0 && !Lv.firstTank.empty())
+	{
+		// Interstage: a skirt on top of stage 1 that covers the stage 2 engine until separation.
+		AddShape(S1, EShape::Cylinder, FVector(0, 0, Stage1TopM + Z / 2.0), FVector(RocketDiameterM, RocketDiameterM, Z),
+			FLinearColor(0.22f, 0.23f, 0.25f));
+	}
 	SpawnPart(Lv.secondTank, S2, FVector(0, 0, Z), FRotator::ZeroRotator, &Size);
 	Z += Size.Z;
 	SpawnPart("sep_system", S2, FVector(0, 0, Z), FRotator::ZeroRotator, &Size);
