@@ -11,7 +11,7 @@ Plain C++ tests for the headers in `Source/ORBITAL_SpaceApps/Assembly/`. Kept ou
     python check_exports.py ../../Docs/CLAUDE_RESEARCH/PART_CATALOG.json exports.json
     (MSVC: cl /std:c++17 /EHsc /O2 /I..\..\Source\ORBITAL_SpaceApps /I..\..\Source\ORBITAL_SpaceApps\Assembly <file>.cpp)
 
-Expected: 118, 90, 429 and 86 checks with 0 failures; 9 exported objects valid.
+Expected: 118, 90, 429 and 91 checks with 0 failures; 9 exported objects valid.
 
 `OrbitalBuiltInCatalog.h` is a test-only compiled copy of the catalog. After a catalog change regenerate it:
 

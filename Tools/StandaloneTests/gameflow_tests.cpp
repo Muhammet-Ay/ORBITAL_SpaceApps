@@ -33,7 +33,15 @@ void FirstGoal()
     CHECK(before.current && *before.current == 240.0 && before.limit && std::fabs(*before.limit - 381.54153985482264) < 1e-6);
     CHECK(HasIssue(flow, "R_BATTERY_ECLIPSE") && flow.Preview().failPhase == "eclipse");
     std::printf("  TC-E power row: %s, %s %.0f / %.1f %s\n", Name(before.state), before.measure.c_str(), *before.current, *before.limit, before.unit.c_str());
+    // Design review power panel: 240 Wh usable against 381.5 Wh needed, amber; solar is fine.
+    const PowerDetail weak = MakePowerDetail(flow.Preview());
+    CHECK(weak.available && weak.usableBatteryWh == 240.0 && std::fabs(weak.eclipseWh - 381.54153985482264) < 1e-6);
+    CHECK(weak.batteryState == DashboardState::Amber && weak.generationState == DashboardState::Green);
+    CHECK(std::fabs(weak.generationW - 1371.888) < 1e-6 && weak.loadW == 477.0 && std::fabs(weak.eclipseMin - 47.992646522619204) < 1e-9);
+    CHECK(!MakePowerDetail(NewFlow().Preview()).available);
     CHECK(flow.Replace("battery", 0, "battery_l").ok);
+    const PowerDetail strong = MakePowerDetail(flow.Preview());
+    CHECK(strong.usableBatteryWh == 960.0 && strong.eclipseWh == weak.eclipseWh && strong.batteryState == DashboardState::Green);
     const ResourceRow after = Row(flow, Resource::Power);
     CHECK(after.state == DashboardState::Green && !HasIssue(flow, "R_BATTERY_ECLIPSE"));
     CHECK(flow.Preview().success && std::fabs(flow.Preview().score - 80.77777777777777) < 1e-9);
