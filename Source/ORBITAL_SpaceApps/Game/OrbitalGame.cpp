@@ -423,9 +423,19 @@ void AOrbitalGameDirector::Tick(float DeltaSeconds)
 			UpdatePreview(*Player, *Flow, DeltaSeconds);
 		}
 	}
-	else if (Flow->Phase() == Orbital::GamePhase::Flight && Flight && Flight->GetReport().bVisible)
+	else
 	{
-		Flow->FlightFinished();
+		// The flight actor installs the plain flight HUD on its first tick; swap in the
+		// version with the telemetry panel. The flight actor re-links itself to it.
+		AHUD* Hud = Player->GetHUD();
+		if (Flight && Hud && Hud->GetClass() == AOrbitalFlightHUD::StaticClass())
+		{
+			Player->ClientSetHUD(AOrbitalGameFlightHUD::StaticClass());
+		}
+		if (Flow->Phase() == Orbital::GamePhase::Flight && Flight && Flight->GetReport().bVisible)
+		{
+			Flow->FlightFinished();
+		}
 	}
 }
 
@@ -1175,6 +1185,39 @@ void AOrbitalAssemblyHUD::DrawHUD()
 		*OrbitalNumber(Preview.totalCostMCr), *OrbitalNumber(Preview.budgetMCr)), White, RightX, Y);
 	Y += RowHeight * 1.3f;
 
+	// ---- right: power in the Moon's shadow (the numbers behind the Power row)
+	const Orbital::PowerDetail Power = Orbital::MakePowerDetail(Preview);
+	if (Power.available)
+	{
+		const auto PowerColor = [&](Orbital::DashboardState PowerState)
+		{
+			return PowerState == Orbital::DashboardState::Green ? Green : Amber;
+		};
+		const auto PowerRow = [&](const TCHAR* Title, const FString& Value, const FLinearColor& Color)
+		{
+			DrawRect(RowColor, RightX, Y, RightW, RowHeight - 2.0f);
+			DrawRect(Color, RightX, Y, 6.0f * Unit, RowHeight - 2.0f);
+			Label(Title, White, RightX + Pad * 1.6f, Y);
+			Label(Value, Color, RightX + RightW * 0.52f, Y);
+			Y += RowHeight;
+		};
+		Label(TEXT("POWER IN THE MOON'S SHADOW"), Accent, RightX, Y);
+		Y += RowHeight;
+		PowerRow(TEXT("Battery / needed in shadow"), FString::Printf(TEXT("%s / %s Wh"),
+			*OrbitalNumber(Power.usableBatteryWh), *OrbitalNumber(Power.eclipseWh)), PowerColor(Power.batteryState));
+		PowerRow(TEXT("Solar power / needed"), FString::Printf(TEXT("%s / %s W"),
+			*OrbitalNumber(Power.generationW), *OrbitalNumber(Power.requiredGenerationW)), PowerColor(Power.generationState));
+		PowerRow(TEXT("Power use, time in shadow"), FString::Printf(TEXT("%s W, %s of %s min"),
+			*OrbitalNumber(Power.loadW), *OrbitalNumber(FMath::RoundToDouble(Power.eclipseMin)),
+			*OrbitalNumber(FMath::RoundToDouble(Power.periodMin))), Dim);
+		for (const FString& Line : WrapText(OrbitalGameText(Orbital::EclipseHint), RightW - Pad, Font, Scale))
+		{
+			Label(Line, Dim, RightX + Pad, Y);
+			Y += RowHeight;
+		}
+		Y += RowHeight * 0.3f;
+	}
+
 	// ---- right: review list
 	const float ButtonsTop = Height - RowHeight * 3.4f;
 	Label(TEXT("DESIGN REVIEW"), Accent, RightX, Y);
@@ -1306,6 +1349,78 @@ void AOrbitalAssemblyHUD::DrawHUD()
 		Button(TEXT("Back to assembly"), PanelX + PanelW * 0.10f, LineY, ChoiceW, ButtonColor, TEXT("a:back"), true);
 		Button(TEXT("Launch anyway"), PanelX + PanelW * 0.54f, LineY, ChoiceW, FLinearColor(0.70f, 0.45f, 0.10f, 0.98f),
 			TEXT("a:confirm"), true);
+	}
+}
+
+// ---------------------------------------------------------------- flight telemetry
+
+void AOrbitalGameFlightHUD::DrawHUD()
+{
+	Super::DrawHUD();
+	const AOrbitalFlightPlayback* Flight = Playback.Get();
+	if (!Flight || !Flight->IsPlaying() || Flight->GetReport().bVisible || !Canvas || !GEngine)
+	{
+		return;
+	}
+	const Orbital::TimelineEvent* Event = Flight->GetCurrentEvent();
+	if (!Event)
+	{
+		return;
+	}
+	const float Width = Canvas->SizeX, Height = Canvas->SizeY;
+	const float Unit = FMath::Max(0.75f, Height / 720.0f);
+	UFont* Font = GEngine->GetLargeFont();
+	const float Scale = 1.3f * Unit;
+	float MeasureWidth = 0, TextHeight = 0;
+	GetTextSize(TEXT("Ag"), MeasureWidth, TextHeight, Font, Scale);
+	const float RowHeight = TextHeight * 1.3f, Pad = 10.0f * Unit;
+
+	// Values are the ones the timeline computed for the event on screen; they change at events.
+	struct FTelemetryRow
+	{
+		FString Title, Value;
+	};
+	TArray<FTelemetryRow> Rows;
+	const auto AddRow = [&Rows](const FString& Title, const FString& Value)
+	{
+		FTelemetryRow Row;
+		Row.Title = Title;
+		Row.Value = Value;
+		Rows.Add(Row);
+	};
+	// The phase name comes from the timeline ("cruise", "lunar orbit"); show it as words.
+	AddRow(TEXT("Mission phase"), OrbitalGameText(Event->phase).Replace(TEXT("_"), TEXT(" ")).ToUpper());
+	if (Event->propellantLeftKg.has_value())
+	{
+		AddRow(Event->vehicle == "launcher" ? TEXT("Rocket fuel left") : TEXT("Spacecraft fuel left"),
+			OrbitalNumber(*Event->propellantLeftKg) + TEXT(" kg"));
+	}
+	if (Event->batteryWh.has_value())
+	{
+		AddRow(TEXT("Battery energy left"), OrbitalNumber(*Event->batteryWh) + TEXT(" Wh"));
+	}
+	if (Event->dataReturnedGB.has_value())
+	{
+		AddRow(TEXT("Data sent to Earth"), OrbitalNumber(*Event->dataReturnedGB) + TEXT(" GB"));
+	}
+
+	float TitleWidth = 0, ValueWidth = 0;
+	for (const FTelemetryRow& Row : Rows)
+	{
+		float RowWidth = 0, RowTextHeight = 0;
+		GetTextSize(Row.Title, RowWidth, RowTextHeight, Font, Scale);
+		TitleWidth = FMath::Max(TitleWidth, RowWidth);
+		GetTextSize(Row.Value, RowWidth, RowTextHeight, Font, Scale);
+		ValueWidth = FMath::Max(ValueWidth, RowWidth);
+	}
+	const float PanelWidth = TitleWidth + ValueWidth + Pad * 4.0f;
+	const float PanelX = Width - PanelWidth - 24.0f * Unit, PanelY = 20.0f * Unit;
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f), PanelX, PanelY - 8.0f * Unit, PanelWidth, Rows.Num() * RowHeight + 16.0f * Unit);
+	for (int32 Index = 0; Index < Rows.Num(); ++Index)
+	{
+		const float RowY = PanelY + Index * RowHeight;
+		DrawText(Rows[Index].Title, FLinearColor(0.7f, 0.85f, 1.0f), PanelX + Pad, RowY, Font, Scale);
+		DrawText(Rows[Index].Value, FLinearColor::White, PanelX + Pad * 3.0f + TitleWidth, RowY, Font, Scale);
 	}
 }
 
