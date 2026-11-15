@@ -25,7 +25,7 @@ There is no packaged build. The game runs from the Unreal Editor on Windows.
 
 1. Clone the repository and run `git lfs pull`.
 2. Build the **Development Editor / Win64** target. The exact command is in [Build and test](Docs/BUILD_AND_TEST.md).
-3. Open `ORBITAL_SpaceApps.uproject`, open the level `L_Mission` (Content/Maps) and press **Play**. The main menu appears.
+3. Open `ORBITAL_SpaceApps.uproject`. The level `L_Mission` opens by itself (if it does not, open it from Content/Maps). Press **Play**. The main menu appears.
 
 **Quickest demonstration (about two minutes):**
 
@@ -66,7 +66,7 @@ ORBITAL does not use the NASA logo or insignia.
 
 The team used Claude (Anthropic), ChatGPT/Codex (OpenAI) and Gemini (Google) to help write code, tests, documentation and on-screen text. Team members set the tasks, reviewed the results, built the project and played it before changes were accepted. Commits written with AI help carry a co-author line.
 
-The stage separation and button click sounds are not NASA recordings; the in-game credits describe them as "generated for this project". *Not verified for this README: which tool generated them.*
+The stage separation and button click sounds are not NASA recordings; they were produced for this project with code (noise and sine-wave synthesis, no AI audio generation); see `Docs/CHALLENGE_TRACEABILITY.md`.
 
 ## Limitations
 
