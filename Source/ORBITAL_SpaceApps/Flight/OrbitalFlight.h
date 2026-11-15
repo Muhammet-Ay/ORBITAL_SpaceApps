@@ -156,6 +156,7 @@ private:
 	FOrbitalFlightReport Report;
 	double LiftoffTwr = 0;
 	double DisplayNow = 0;
+	double PadHoldLeft = 0; // seconds of ignition on the pad before the show clock starts
 	int32 NextEvent = 0, CurrentEvent = -1;
 	bool bPlaying = false, bFinished = false, bPlayerReady = false, bTestMode = false;
 	double FinishedForS = 0;

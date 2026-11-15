@@ -598,6 +598,7 @@ bool AOrbitalFlightPlayback::StartFlight(const Orbital::Catalog& Catalog, const 
 	bTestMode = FParse::Param(FCommandLine::Get(), TEXT("OrbitalFlightTest"));
 	Report = FOrbitalFlightReport();
 	DisplayNow = 0;
+	PadHoldLeft = bTestMode ? 0.0 : 3.0; // engines light, then the vehicle leaves the pad
 	NextEvent = 0;
 	CurrentEvent = -1;
 	bFinished = false;
@@ -740,6 +741,7 @@ void AOrbitalFlightPlayback::Skip()
 	}
 	const double Target = Orbital::SkipTarget(Show, DisplayNow);
 	UE_LOG(LogOrbitalFlight, Display, TEXT("Skip: %.2f s -> %.2f s"), DisplayNow, Target);
+	PadHoldLeft = 0;
 	DisplayNow = FMath::Max(DisplayNow, Target);
 	PlayOneShot(ClickSound, 0.8f);
 }
@@ -1021,7 +1023,14 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 	const int32 Count = static_cast<int32>(Show.size());
 	if (!bFinished)
 	{
-		DisplayNow += DeltaSeconds;
+		if (PadHoldLeft > 0)
+		{
+			PadHoldLeft -= DeltaSeconds; // show clock stays at zero: display only, no result changes
+		}
+		else
+		{
+			DisplayNow += DeltaSeconds;
+		}
 		if (bTestMode && !bTestSkipped && CurrentEvent == 0 && DisplayNow > 6.0
 			&& FParse::Param(FCommandLine::Get(), TEXT("OrbitalFlightTestSkip")))
 		{
