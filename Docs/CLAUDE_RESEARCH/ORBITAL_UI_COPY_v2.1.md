@@ -20,7 +20,7 @@
 | E_BUDGET | BLOCK | The mission costs more than the selected budget allows. | Replace expensive parts or ground services with cheaper options. |
 | R_SC_DELTA_V_INSERTION | RISK | The probe cannot change its speed enough to enter lunar orbit, so it will fly past the Moon. | Load more propellant within tank capacity, use a more efficient engine, or reduce mass. |
 | R_SC_DELTA_V_LIFETIME | RISK | The probe can enter orbit, but will run out of propellant for orbit corrections before the planned mission ends. | Load more propellant within tank capacity or choose an orbit that needs fewer corrections. |
-| R_POWER_GENERATION | RISK | The solar arrays cannot power the equipment and recharge the batteries, so the mission will fail during eclipse operations. | Add solar array area or reduce electrical loads. |
+| R_POWER_GENERATION | RISK | The power sources cannot run the equipment and recharge the batteries, so the mission will fail when it passes through shadow. | Add solar array area (or an RTG where sunlight is weak), or reduce electrical loads by removing instruments. |
 | R_BATTERY_ECLIPSE | RISK | The batteries cannot keep the spacecraft powered through its first eclipse. | Add usable battery capacity or reduce electrical loads. |
 | R_NEEDS_FINE_POINTING | RISK | An instrument or antenna needs precise aiming and will be unusable without it. | Add a Reaction Wheel Set. |
 | R_STORAGE | RISK | Storage fills before the next ground contact, so some data is lost. | Choose a computer with more storage or a ground network with shorter gaps. |

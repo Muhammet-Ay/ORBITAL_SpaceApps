@@ -170,7 +170,7 @@ inline DashboardReview MakeDashboardReview(const MissionResult& result)
         compare(Res::Mass, "Bus wet mass", "kg", sc.wetKg, sc.busMassLimitKg, true);
         if (lv.liftoffKg > 0)
             compare(Res::Mass, "Fairing payload mass", "kg", sc.wetKg, lv.fairingMassLimitKg, true);
-        compare(Res::Power, "Solar generation", "W", sc.generationW, sc.requiredGenerationW);
+        compare(Res::Power, "Power generation", "W", sc.generationW, sc.requiredGenerationW);
         compare(Res::Power, "Usable eclipse battery", "Wh", sc.usableBatteryWh, sc.eclipseWh);
         compare(Res::Data, "Onboard storage", "GB", sc.storageGB, sc.requiredStorageGB);
         compare(Res::Data, "Daily downlink capacity", "GB/day", sc.downlinkGBPerDay, sc.generatedGBPerDay);

@@ -1221,12 +1221,18 @@ void AOrbitalAssemblyHUD::DrawHUD()
 		Y += RowHeight;
 		PowerRow(TEXT("Battery / needed in shadow"), FString::Printf(TEXT("%s / %s Wh"),
 			*OrbitalNumber(Power.usableBatteryWh), *OrbitalNumber(Power.eclipseWh)), PowerColor(Power.batteryState));
-		PowerRow(TEXT("Solar power / needed"), FString::Printf(TEXT("%s / %s W"),
+		PowerRow(TEXT("Power made / needed"), FString::Printf(TEXT("%s / %s W"),
 			*OrbitalNumber(Power.generationW), *OrbitalNumber(Power.requiredGenerationW)), PowerColor(Power.generationState));
 		PowerRow(TEXT("Power use, time in shadow"), FString::Printf(TEXT("%s W, %s of %s min"),
 			*OrbitalNumber(Power.loadW), *OrbitalNumber(FMath::RoundToDouble(Power.eclipseMin)),
 			*OrbitalNumber(FMath::RoundToDouble(Power.periodMin))), Dim);
-		for (const FString& Line : WrapText(OrbitalGameText(Orbital::EclipseHint), RightW - Pad, Font, Scale))
+		FString PowerHint = OrbitalGameText(Orbital::EclipseHint);
+		if (Flow->Sunlight() < 1.0)
+		{
+			// Far from the Sun: say why the arrays show almost nothing.
+			PowerHint = FString::Printf(TEXT("Sunlight here is 1/%.0f of Earth's, so solar arrays give almost nothing. An RTG works anywhere."), 1.0 / Flow->Sunlight());
+		}
+		for (const FString& Line : WrapText(PowerHint, RightW - Pad, Font, Scale))
 		{
 			Label(Line, Dim, RightX + Pad, Y);
 			Y += RowHeight;
