@@ -1297,12 +1297,19 @@ void AOrbitalAssemblyHUD::DrawHUD()
 
 	// ---- bottom right: reference cases and Launch
 	{
-		const float Gap = 6.0f * Unit, CaseWidth = (RightW - Gap * 3) / 4.0f;
-		const TCHAR* Cases[] = {TEXT("TC-A"), TEXT("TC-B"), TEXT("TC-E"), TEXT("TC-F")};
-		// What each ready-made design shows (TEST_CASES.md).
-		const TCHAR* CaseTitles[] = {TEXT("Small & cheap"), TEXT("Full survey"), TEXT("Weak battery"), TEXT("Small arrays")};
+		// What each ready-made design shows (TEST_CASES.md). Far from the Sun the choice is simpler:
+		// a probe that works there and one that does not.
+		const bool bFarFromSun = Flow->Sunlight() < 1.0;
+		const int32 CaseCount = bFarFromSun ? 2 : 4;
+		const float Gap = 6.0f * Unit, CaseWidth = (RightW - Gap * (CaseCount - 1)) / CaseCount;
+		const TCHAR* LunarCases[] = {TEXT("TC-A"), TEXT("TC-B"), TEXT("TC-E"), TEXT("TC-F")};
+		const TCHAR* LunarTitles[] = {TEXT("Small & cheap"), TEXT("Full survey"), TEXT("Weak battery"), TEXT("Small arrays")};
+		const TCHAR* FarCases[] = {TEXT("RTG"), TEXT("TC-A")};
+		const TCHAR* FarTitles[] = {TEXT("RTG probe  (works here)"), TEXT("Solar probe  (fails here)")};
+		const TCHAR* const* Cases = bFarFromSun ? FarCases : LunarCases;
+		const TCHAR* const* CaseTitles = bFarFromSun ? FarTitles : LunarTitles;
 		Label(TEXT("READY-MADE DESIGNS  (click one to load it)"), Accent, RightX, ButtonsTop - RowHeight);
-		for (int32 Index = 0; Index < 4; ++Index)
+		for (int32 Index = 0; Index < CaseCount; ++Index)
 		{
 			Button(CaseTitles[Index], RightX + Index * (CaseWidth + Gap), ButtonsTop, CaseWidth,
 				ButtonColor, FString(TEXT("c:")) + Cases[Index], bInteractive);
@@ -1622,7 +1629,22 @@ void AOrbitalGameFlightHUD::DrawMap(const Orbital::TimelineEvent& Event, float L
 	const FLinearColor Bad(1.0f, 0.45f, 0.35f);
 	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f), Left, Top, MapWidth, MapHeight);
 	const float Scale = 1.0f * Unit, Pad = 8.0f * Unit;
-	DrawText(TEXT("ORBIT MAP  (not to scale)"), Accent, Left + Pad, Top + Pad * 0.6f, Font, Scale);
+	// The Pluto power test is flown at the Moon; say so, and say how far the real trip is.
+	const UGameInstance* Instance = GetGameInstance();
+	UOrbitalGameStateSubsystem* State = Instance ? Instance->GetSubsystem<UOrbitalGameStateSubsystem>() : nullptr;
+	const Orbital::GameFlow* Flow = State ? State->GetFlow() : nullptr;
+	if (Flow && Flow->Sunlight() < 1.0)
+	{
+		float TitleWidth = 0, TitleHeight = 0;
+		GetTextSize(TEXT("Ag"), TitleWidth, TitleHeight, Font, Scale);
+		DrawText(TEXT("ORBIT MAP  (power test at the Moon)"), Accent, Left + Pad, Top + Pad * 0.6f, Font, Scale);
+		DrawText(TEXT("The real trip to Pluto takes about 9.5 years."), FLinearColor(0.75f, 0.75f, 0.75f), Left + Pad,
+			Top + Pad * 0.6f + TitleHeight * 1.2f, Font, Scale);
+	}
+	else
+	{
+		DrawText(TEXT("ORBIT MAP  (not to scale)"), Accent, Left + Pad, Top + Pad * 0.6f, Font, Scale);
+	}
 
 	Ring(Earth, ParkRadius, Planned);
 	Ring(Moon, LunarRadius, bInLunarOrbit && !bLost ? Flown : Planned);

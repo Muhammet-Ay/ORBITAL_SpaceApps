@@ -167,6 +167,10 @@ for en, tr in {
     "Pluto gets 1/1560 of Earth's sunlight, so solar arrays are useless there. Prove the probe's power system in lunar orbit with sunlight dimmed to Pluto's level. You will need an RTG.":
         "Plüton, Dünya'ya ulaşan güneş ışığının 1/1560'ını alır; orada güneş panelleri işe yaramaz. Sondanın güç sistemini, güneş ışığı Plüton düzeyine kısılmış halde Ay yörüngesinde kanıtlayın. Bir RTG gerekecek.",
     "Sunlight: 1/1560 of Earth's": "Güneş ışığı: Dünya'dakinin 1/1560'ı",
+    "RTG probe  (works here)": "RTG'li sonda  (burada çalışır)",
+    "Solar probe  (fails here)": "Güneş panelli sonda  (burada çalışmaz)",
+    "ORBIT MAP  (power test at the Moon)": "YÖRÜNGE HARİTASI  (Ay'da güç testi)",
+    "The real trip to Pluto takes about 9.5 years.": "Plüton'a gerçek yolculuk yaklaşık 9.5 yıl sürer.",
     # flight view and report
     "Right mouse: orbit": "Sağ fare: çevir", "Wheel: zoom": "Tekerlek: yakınlaştır", "Skip  >>": "Geç  >>",
     "Phase reached": "Ulaşılan aşama", "Score: 1.5": "Puan: 1.5", "Science: 2.5": "Bilim: 2.5",

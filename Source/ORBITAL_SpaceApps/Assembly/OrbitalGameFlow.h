@@ -185,13 +185,19 @@ public:
     // Reference designs from TEST_CASES.md: TC-A, TC-B, TC-D, TC-E, TC-F.
     bool LoadCase(const Id& name)
     {
-        const bool caseA = name == "TC-A";
+        // "RTG": the small probe with an RTG and a full tank, a design that passes the Pluto power test.
+        const bool caseA = name == "TC-A" || name == "RTG";
         const auto probe = presets_.spacecraft.find(caseA ? "SC_PROSPECTOR" : "SC_SURVEYOR");
         const auto rocket = presets_.launchers.find(caseA ? "LV_LIGHT" : "LV_MID");
         if (probe == presets_.spacecraft.end() || rocket == presets_.launchers.end())
             return false;
         SpacecraftDesign design = probe->second;
-        if (name == "TC-D")
+        if (name == "RTG")
+        {
+            design.solar = {"rtg"};
+            design.propKg = 150.0;
+        }
+        else if (name == "TC-D")
             design.propKg = 150.0;
         else if (name == "TC-E")
             design.battery = {"battery_s"};

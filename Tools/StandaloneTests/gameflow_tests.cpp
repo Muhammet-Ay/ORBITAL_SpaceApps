@@ -194,7 +194,11 @@ void RtgAndPluto()
     probe.solar = {"rtg"};
     CHECK(lunar.LoadDesign(probe, OrbitalData::LauncherPresets().at("LV_HEAVY")));
     CHECK(lunar.Preview().totalCostMCr > 310.0 && HasIssue(lunar, "E_BUDGET"));
-    // Going back to a lunar card restores full sunlight.
+    // The ready-made RTG probe passes the Pluto power test as loaded.
+    GameFlow ready = NewFlow();
+    CHECK(ready.StartMission(cards[3]) && ready.LoadCase("RTG"));
+    CHECK(ready.Preview().block.empty() && ready.Preview().risk.empty() && ready.Preview().totalCostMCr == 252.0);
+    CHECK(ready.LoadCase("TC-A") && HasRisk(ready, "R_POWER_GENERATION"));
     CHECK(flow.Phase() == GamePhase::Flight);
 }
 } // namespace
