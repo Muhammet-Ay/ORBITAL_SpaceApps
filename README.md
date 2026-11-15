@@ -14,7 +14,7 @@ Team: Three-Body Problem. (Istanbul local event)
 - **A live dashboard** with seven rows: mass, power, budget, data, communications, time and delta-v. Each row shows your value against its limit.
 - **A power panel** showing battery energy against what the spacecraft needs while it is in the Moon's shadow.
 - **A design review** before launch. Items are marked **MUST FIX** (launch is blocked), **RISK** (you may launch, but the mission can fail in flight) or **NOTE**.
-- **A flight view:** liftoff, gravity turn, stage separation, fairing release, parking orbit, transfer to the Moon and lunar operations, with a telemetry panel (mission phase, fuel left, battery energy, data sent to Earth).
+- **A flight view:** liftoff, gravity turn, stage separation, fairing release, parking orbit, transfer to the Moon and lunar operations, with a telemetry panel (mission phase, fuel left, battery energy, data sent to Earth), an orbit map that shows where the vehicle is on its route (a diagram, not to scale) and an attitude indicator for the climb.
 - **A mission report:** result, score, the cause of any failure and a suggested fix, with a **Redesign** button that returns you to the same design.
 
 ## How to run it
@@ -76,7 +76,7 @@ The stage separation and button click sounds are not NASA recordings; they were 
 - **One destination.** All three missions are lunar polar orbiters.
 - **Windows, from the editor.** No packaged build, and no other platform has been tried.
 
-*Not verified for this README:* this text was written from the source code at commit `4da8943` (`integration/day2`). Menu items, mission names, budgets, button labels and credits were read from the code. The flight view's appearance on that exact commit was not watched by the author of this file; see [Build status](Docs/BUILD_STATUS.md) for what has been built and played.
+*Not verified for this README:* this text was written from the source code of `integration/day2` (`4da8943`) and updated for the orbit map and attitude indicator added after it. Menu items, mission names, budgets, button labels and credits were read from the code. The flight view's appearance on that exact commit was not watched by the author of this file; see [Build status](Docs/BUILD_STATUS.md) for what has been built and played.
 
 ## Team
 
