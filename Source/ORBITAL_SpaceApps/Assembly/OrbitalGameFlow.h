@@ -40,7 +40,7 @@ struct PowerDetail
 };
 
 inline constexpr const char* EclipseHint =
-    "Solar panels produce no power in eclipse. The battery must run the systems for that time.";
+    "Solar panels produce no power in the Moon's shadow. The battery must run the systems for that time.";
 
 inline PowerDetail MakePowerDetail(const MissionResult& result)
 {

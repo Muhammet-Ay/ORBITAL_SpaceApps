@@ -140,6 +140,17 @@ for en, tr in {
     "Needs fine pointing": "Hassas yönelim gerekli", "Storage": "Depolama yetersiz",
     "No instrument": "Bilimsel alet yok", "Primary instrument missing": "Ana hedefin aleti eksik",
     "Data bottleneck": "Veri darboğazı",
+    # power and telemetry panels
+    "POWER IN THE MOON'S SHADOW": "AY'IN GÖLGESİNDE GÜÇ",
+    "Battery / needed in shadow": "Batarya / gölgede gereken",
+    "Solar power / needed": "Güneş gücü / gereken",
+    "Power use, time in shadow": "Güç tüketimi, gölgede geçen süre",
+    "1 W, 2 of 3 min": "1 W, 2 / 3 dk",
+    "Solar panels produce no power in the Moon's shadow. The battery must run the systems for that time.":
+        "Güneş panelleri Ay'ın gölgesinde güç üretmez. Bu süre boyunca sistemleri batarya çalıştırmalıdır.",
+    "Mission phase": "Görev aşaması", "Rocket fuel left": "Kalan roket yakıtı",
+    "Spacecraft fuel left": "Kalan uzay aracı yakıtı", "Battery energy left": "Kalan batarya enerjisi",
+    "Data sent to Earth": "Dünya'ya gönderilen veri",
     # flight view and report
     "Right mouse: orbit": "Sağ fare: çevir", "Wheel: zoom": "Tekerlek: yakınlaştır", "Skip  >>": "Geç  >>",
     "Phase reached": "Ulaşılan aşama", "Score: 1.5": "Puan: 1.5", "Science: 2.5": "Bilim: 2.5",

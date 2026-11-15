@@ -230,11 +230,14 @@ public:
 	TWeakObjectPtr<AOrbitalFlightPlayback> Playback;
 
 private:
+protected:
 	// Every line goes through the translator (Game/OrbitalLanguage.h) just before it is measured or
 	// drawn. These hide AHUD's functions of the same name on purpose, so no call site changes.
 	void DrawText(const FString& Text, FLinearColor Color, float X, float Y, UFont* Font = nullptr, float Scale = 1.0f,
 		bool bScalePosition = false);
 	void GetTextSize(const FString& Text, float& OutWidth, float& OutHeight, UFont* Font = nullptr, float Scale = 1.0f) const;
+
+private:
 	TArray<FString> Wrap(const FString& Text, float MaxWidth, UFont* Font, float Scale) const;
 	void DrawReport(const FOrbitalFlightReport& Report, float Width, float Height, float Unit, UFont* Font);
 };
