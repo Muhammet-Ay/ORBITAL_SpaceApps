@@ -1441,6 +1441,75 @@ void AOrbitalGameFlightHUD::DrawHUD()
 
 	const float MapWidth = Width * 0.27f, MapHeight = Height * 0.30f;
 	DrawMap(*Event, Width - MapWidth - 24.0f * Unit, PanelY + Rows.Num() * RowHeight + 24.0f * Unit, MapWidth, MapHeight, Unit, Font);
+	if (Event->phase == "launch" || Event->phase == "ascent" || Event->phase == "parking")
+	{
+		DrawAttitude(*Flight, *Event, 24.0f * Unit, Height * 0.34f, Height * 0.075f, Unit, Font);
+	}
+}
+
+// Our own instrument, in the spirit of an aircraft's artificial horizon: sky above the horizon
+// line, ground below it, and a fixed rocket mark in the middle. A rocket standing on the pad points
+// straight up (all sky); as it tips over in the gravity turn the horizon rises to the middle.
+// The angle is read from the vehicle model in the scene. Display only.
+void AOrbitalGameFlightHUD::DrawAttitude(const AOrbitalFlightPlayback& Flight, const Orbital::TimelineEvent& Event, float Left,
+	float Top, float Radius, float Unit, UFont* Font)
+{
+	const float Up = FMath::Clamp(static_cast<float>(Flight.GetActorUpVector().Z), -1.0f, 1.0f);
+	const float PitchDeg = FMath::RadiansToDegrees(FMath::Asin(Up)); // 90: straight up, 0: level with the ground
+	const float Scale = 1.0f * Unit, Pad = 8.0f * Unit;
+	float MeasureWidth = 0, TextHeight = 0;
+	GetTextSize(TEXT("Ag"), MeasureWidth, TextHeight, Font, Scale);
+	const float RowHeight = TextHeight * 1.25f, Header = RowHeight + Pad;
+	const float PanelWidth = Radius * 2.0f + Pad * 2.0f, PanelHeight = Header + Radius * 2.0f + RowHeight * 3.0f + Pad * 2.0f;
+	const FLinearColor Accent(0.7f, 0.85f, 1.0f), Sky(0.20f, 0.45f, 0.85f), Ground(0.45f, 0.32f, 0.20f);
+	const FLinearColor Mark(1.0f, 0.80f, 0.25f);
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f), Left, Top, PanelWidth, PanelHeight);
+	DrawText(TEXT("ATTITUDE"), Accent, Left + Pad, Top + Pad * 0.6f, Font, Scale);
+
+	const float CentreX = Left + Pad + Radius, CentreY = Top + Header + Radius;
+	const float Horizon = CentreY + PitchDeg / 90.0f * Radius; // screen height of the horizon line
+	const float Strip = FMath::Max(1.0f, Unit);
+	for (float Offset = -Radius; Offset < Radius; Offset += Strip)
+	{
+		const float Half = FMath::Sqrt(FMath::Max(0.0f, Radius * Radius - Offset * Offset));
+		DrawRect(CentreY + Offset < Horizon ? Sky : Ground, CentreX - Half, CentreY + Offset, Half * 2.0f, Strip);
+	}
+	// Horizon line and marks 30 and 60 degrees above it, clipped to the dial.
+	const auto Chord = [&](float Y, float Fraction, const FLinearColor& Color, float Thickness)
+	{
+		const float Offset = Y - CentreY;
+		if (FMath::Abs(Offset) < Radius)
+		{
+			const float Half = FMath::Sqrt(Radius * Radius - Offset * Offset) * Fraction;
+			DrawLine(CentreX - Half, Y, CentreX + Half, Y, Color, Thickness);
+		}
+	};
+	Chord(Horizon, 1.0f, FLinearColor::White, 2.0f * Unit);
+	Chord(Horizon - Radius / 3.0f, 0.35f, FLinearColor(1.0f, 1.0f, 1.0f, 0.7f), Unit);
+	Chord(Horizon - Radius * 2.0f / 3.0f, 0.35f, FLinearColor(1.0f, 1.0f, 1.0f, 0.7f), Unit);
+	for (int32 Index = 0; Index < 48; ++Index)
+	{
+		const float A = Index / 48.0f * 2.0f * UE_PI, B = (Index + 1) / 48.0f * 2.0f * UE_PI;
+		DrawLine(CentreX + FMath::Cos(A) * Radius, CentreY + FMath::Sin(A) * Radius,
+			CentreX + FMath::Cos(B) * Radius, CentreY + FMath::Sin(B) * Radius, Accent, 2.0f * Unit);
+	}
+	// Fixed rocket mark: a pointed nose with two short wings.
+	const float Nose = Radius * 0.16f;
+	DrawLine(CentreX - Nose, CentreY + Nose * 0.7f, CentreX, CentreY - Nose * 0.7f, Mark, 2.5f * Unit);
+	DrawLine(CentreX, CentreY - Nose * 0.7f, CentreX + Nose, CentreY + Nose * 0.7f, Mark, 2.5f * Unit);
+	DrawLine(CentreX - Radius * 0.62f, CentreY, CentreX - Radius * 0.30f, CentreY, Mark, 2.5f * Unit);
+	DrawLine(CentreX + Radius * 0.30f, CentreY, CentreX + Radius * 0.62f, CentreY, Mark, 2.5f * Unit);
+
+	float Y = CentreY + Radius + Pad;
+	DrawText(FString::Printf(TEXT("Nose above horizon: %.0f deg"), FMath::Max(PitchDeg, 0.0f)), FLinearColor::White, Left + Pad, Y, Font, Scale);
+	Y += RowHeight;
+	if (!Event.altitude.empty())
+	{
+		DrawText(TEXT("Altitude: ") + OrbitalGameText(Event.altitude), FLinearColor::White, Left + Pad, Y, Font, Scale);
+		Y += RowHeight;
+	}
+	DrawText(PitchDeg > 80.0f ? TEXT("Vertical climb") : PitchDeg > 20.0f ? TEXT("Gravity turn") : TEXT("Nearly level, gaining speed"),
+		Mark, Left + Pad, Y, Font, Scale);
 }
 
 // The map is a diagram, not a simulation: Earth, parking orbit, the transfer and lunar orbit are

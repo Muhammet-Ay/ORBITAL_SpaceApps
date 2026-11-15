@@ -173,6 +173,10 @@ private:
 	// Orbit map: a schematic of the route from the pad to lunar orbit, with the vehicle's place on it.
 	void DrawMap(const Orbital::TimelineEvent& Event, float Left, float Top, float MapWidth, float MapHeight, float Unit, UFont* Font);
 
+	// Attitude indicator for the climb: how far the rocket has tipped over from vertical.
+	void DrawAttitude(const AOrbitalFlightPlayback& Flight, const Orbital::TimelineEvent& Event, float Left, float Top,
+		float Radius, float Unit, UFont* Font);
+
 	Orbital::Id MapEvent;        // event the map is animating from
 	float MapEventSeconds = 0;   // time since that event came on screen
 	float MapOrbitTurns = 0;     // turns flown around the Moon, for the moving marker

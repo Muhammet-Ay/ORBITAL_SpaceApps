@@ -156,6 +156,10 @@ for en, tr in {
     "Climbing to orbit": "Yörüngeye tırmanış", "Parking orbit": "Park yörüngesi",
     "On the way to the Moon": "Ay yolunda", "Lunar orbit": "Ay yörüngesi",
     "Flew past the Moon": "Ay'ın yanından geçti", "Contact lost": "Bağlantı koptu",
+    # attitude indicator
+    "ATTITUDE": "YÖNELİM", "Nose above horizon: 67 deg": "Burnun ufka göre açısı: 67 derece",
+    "Altitude": "İrtifa", "Vertical climb": "Dikey tırmanış", "Gravity turn": "Yerçekimi dönüşü",
+    "Nearly level, gaining speed": "Neredeyse yatay, hız kazanıyor",
     # flight view and report
     "Right mouse: orbit": "Sağ fare: çevir", "Wheel: zoom": "Tekerlek: yakınlaştır", "Skip  >>": "Geç  >>",
     "Phase reached": "Ulaşılan aşama", "Score: 1.5": "Puan: 1.5", "Science: 2.5": "Bilim: 2.5",
