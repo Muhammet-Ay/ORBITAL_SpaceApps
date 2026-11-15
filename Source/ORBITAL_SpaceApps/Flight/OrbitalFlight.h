@@ -138,6 +138,11 @@ private:
 	void PlaceAboveEarth(ACameraActor& Camera, const FVector& FocusWorld);
 	void InitAscentPath();
 	FTransform AscentPose(double AltitudeCm, double ForcePitchDeg = -1.0) const;
+	double AscentAltitudeNow() const { return AscentAltitudeAt(DisplayNow); }
+	double AscentAltitudeAt(double ShowTimeS) const;
+	FVector AscentVelocityCm() const;
+	void UpdateChaseCamera(float DeltaSeconds);
+	void SmoothEarth();
 	void PlaceInFrontOfCamera(const ACameraActor& Camera, const FVector& FocusLocalCm, double SizeM, double Fraction);
 	void FrameSubject(ACameraActor& Camera, const FVector& FocusWorld, double SizeM, double VerticalFraction);
 	void SetFill(bool bOn, const FVector& Location = FVector::ZeroVector, double DistanceCm = 0);
@@ -184,6 +189,12 @@ private:
 	FVector EarthCentreCm = FVector::ZeroVector;
 	double PadRadiusCm = 0.0;
 	FVector PathUp = FVector::UpVector, PathDownrange = FVector::ForwardVector;
+	// One camera follows the vehicle from the pad through fairing release (display only).
+	TWeakObjectPtr<ACameraActor> ChaseCamera;
+	FVector ChaseSide = FVector::RightVector;
+	FVector ChaseOffsetCm = FVector::ZeroVector;
+	bool bChaseOffsetSet = false;
+	bool bPadHidden = false;
 	FVector DriftCm = FVector::ZeroVector;
 	FVector FocusLocalCm = FVector::ZeroVector;
 	double FocusSizeM = 30, FocusFraction = 0.5;

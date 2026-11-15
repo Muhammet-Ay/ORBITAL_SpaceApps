@@ -56,8 +56,10 @@ const double AspectRatio = 16.0 / 9.0;
 const double SceneCmPerRealKm = 1000.0;
 const double SeparationHeightCm = 70.0 * SceneCmPerRealKm;  // typical first-stage cutoff
 const double FairingHeightCm = 110.0 * SceneCmPerRealKm;    // fairing off above the dense air
-const double VerticalRiseCm = 3000.0;                       // straight up for the first 30 m
-// Gravity turn: pitch from vertical, by height. Vertical first, then a smooth pitch-over.
+const double VerticalRiseCm = 15000.0;                      // straight up until clear of tower and clouds
+const double ParkingHeightCm = 200.0 * SceneCmPerRealKm;    // default parking orbit (timeline value used when given)
+// Gravity turn: pitch from vertical, by height. A long vertical climb, then a gradual pitch-over:
+// 45 degrees at stage separation, 70 at fairing release, level at parking orbit.
 double TurnPitchDeg(double AltitudeCm, double ParkingCm)
 {
 	if (AltitudeCm <= VerticalRiseCm)
@@ -66,14 +68,18 @@ double TurnPitchDeg(double AltitudeCm, double ParkingCm)
 	}
 	if (AltitudeCm <= SeparationHeightCm)
 	{
-		return 55.0 * FMath::SmoothStep(VerticalRiseCm, SeparationHeightCm, AltitudeCm);
+		return 45.0 * FMath::SmoothStep(VerticalRiseCm, SeparationHeightCm, AltitudeCm);
 	}
 	if (AltitudeCm <= FairingHeightCm)
 	{
-		return 55.0 + 20.0 * FMath::SmoothStep(SeparationHeightCm, FairingHeightCm, AltitudeCm);
+		return 45.0 + 25.0 * FMath::SmoothStep(SeparationHeightCm, FairingHeightCm, AltitudeCm);
 	}
-	return 75.0 + 15.0 * FMath::SmoothStep(FairingHeightCm, FMath::Max(ParkingCm, FairingHeightCm + 1.0), AltitudeCm);
+	return 70.0 + 20.0 * FMath::SmoothStep(FairingHeightCm, FMath::Max(ParkingCm, FairingHeightCm + 1.0), AltitudeCm);
 }
+// Chase camera: height above the vehicle's level, in degrees. Slightly below at the pad so ground
+// and pad are in view, above once high so Earth's limb is in frame.
+const double ChaseElevationPadDeg = -3.0;
+const double ChaseElevationHighDeg = 12.0;
 // Where Earth's limb sits in the frame: this fraction of the half-height above the centre.
 const double HorizonAboveCentre = 0.4;
 
@@ -962,7 +968,7 @@ void AOrbitalFlightPlayback::InitAscentPath()
 // ForcePitchDeg >= 0 overrides only the attitude (parking orbit is drawn level).
 FTransform AOrbitalFlightPlayback::AscentPose(double AltitudeCm, double ForcePitchDeg) const
 {
-	const double ParkingCm = 200.0 * SceneCmPerRealKm;
+	const double ParkingCm = ParkingHeightCm;
 	const int32 Steps = 96;
 	double Downrange = 0.0;
 	for (int32 Step = 0; Step < Steps; ++Step)
@@ -979,6 +985,92 @@ FTransform AOrbitalFlightPlayback::AscentPose(double AltitudeCm, double ForcePit
 	const FVector Side = FVector::CrossProduct(Radial, Along);
 	const FRotator Rotation = FRotationMatrix::MakeFromZY(Axis, Side).Rotator();
 	return FTransform(Rotation, EarthCentreCm + Radial * (PadRadiusCm + AltitudeCm));
+}
+
+// The level's Earth uses the engine's low-poly sphere; seen from a few hundred metres up its flat
+// faces show as grey slabs with straight edges. Swap in the project's high-poly sphere (same 50 cm
+// radius, so the same scale) for the ascent. Display only; the level file is unchanged.
+void AOrbitalFlightPlayback::SmoothEarth()
+{
+	UStaticMesh* HiPoly = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Meshes/SM_Sphere_HiPoly.SM_Sphere_HiPoly"));
+	for (TActorIterator<AStaticMeshActor> It(GetWorld()); It && HiPoly; ++It)
+	{
+		UStaticMeshComponent* Mesh = It->GetStaticMeshComponent();
+		const UMaterialInterface* Material = Mesh ? Mesh->GetMaterial(0) : nullptr;
+		if (Material && Material->GetName() == TEXT("M_Earth") && Mesh->GetStaticMesh() != HiPoly)
+		{
+			UMaterialInterface* EarthMaterial = Mesh->GetMaterial(0);
+			Mesh->SetMobility(EComponentMobility::Movable);
+			Mesh->SetStaticMesh(HiPoly);
+			Mesh->SetMaterial(0, EarthMaterial);
+		}
+	}
+}
+
+// Display height on the ascent path for the current show time. One curve from liftoff through
+// fairing release: slow start (cubic) to stage separation, the same speed on through the
+// separation dwell, then easing up towards the parking height so it arrives level.
+double AOrbitalFlightPlayback::AscentAltitudeAt(double ShowTimeS) const
+{
+	const int32 Count = static_cast<int32>(Show.size());
+	if (Count < 2)
+	{
+		return 0.0;
+	}
+	const double T0 = Show[0].displayTimeS, T1 = FMath::Max(Show[1].displayTimeS, T0 + 0.1);
+	const double SeparationSpeed = 3.0 * SeparationHeightCm / (T1 - T0);
+	if (ShowTimeS <= T1)
+	{
+		const double U = FMath::Clamp((ShowTimeS - T0) / (T1 - T0), 0.0, 1.0);
+		return SeparationHeightCm * U * U * U;
+	}
+	const double T2 = Count > 2 ? FMath::Max(Show[2].displayTimeS, T1) : T1 + 4.0;
+	if (ShowTimeS <= T2 || Count < 3)
+	{
+		return SeparationHeightCm + SeparationSpeed * (ShowTimeS - T1);
+	}
+	const double H2 = SeparationHeightCm + SeparationSpeed * (T2 - T1);
+	const double T3 = Count > 3 ? FMath::Max(Show[3].displayTimeS, T2 + 1.0) : T2 + 30.0;
+	const double U = FMath::Clamp((ShowTimeS - T2) / (T3 - T2), 0.0, 1.0);
+	return H2 + (FMath::Max(ParkingHeightCm, H2) - H2) * (1.0 - (1.0 - U) * (1.0 - U));
+}
+
+// World velocity of the vehicle on the ascent path, so released parts can start moving with it.
+FVector AOrbitalFlightPlayback::AscentVelocityCm() const
+{
+	const double Step = 0.1;
+	return (AscentPose(AscentAltitudeAt(DisplayNow + Step)).GetLocation()
+		- AscentPose(AscentAltitudeAt(DisplayNow)).GetLocation()) / Step;
+}
+
+// Keeps the chase camera beside the climbing vehicle: on the liftoff camera's side of the path,
+// low at the pad and rising above the vehicle as it climbs. The offset is smoothed so changes of
+// framing between events glide instead of cutting. FrameSubject then aims it at the vehicle.
+void AOrbitalFlightPlayback::UpdateChaseCamera(float DeltaSeconds)
+{
+	ACameraActor* Camera = ChaseCamera.Get();
+	if (!Camera || Camera != ActiveCamera)
+	{
+		return;
+	}
+	const FVector Focus = GetActorTransform().TransformPosition(FocusLocalCm);
+	const FVector LocalUp = bPathReady ? (Focus - EarthCentreCm).GetSafeNormal() : FVector::UpVector;
+	FVector Side = ChaseSide - LocalUp * FVector::DotProduct(ChaseSide, LocalUp);
+	Side = Side.IsNearlyZero() ? FVector::RightVector : Side.GetSafeNormal();
+	const double Height = bPathReady ? FVector::Dist(Focus, EarthCentreCm) - PadRadiusCm : 0.0;
+	const double Elevation = FMath::DegreesToRadians(FMath::Lerp(ChaseElevationPadDeg, ChaseElevationHighDeg,
+		FMath::Clamp(Height / SeparationHeightCm, 0.0, 1.0)));
+	const float* Original = OriginalFov.Find(Camera);
+	const double Fov = FMath::DegreesToRadians(Original ? *Original : Camera->GetCameraComponent()->FieldOfView);
+	const double Distance = (FocusSizeM * 100.0 / FocusFraction / 2.0) * AspectRatio / FMath::Tan(Fov / 2.0);
+	const FVector Wanted = (Side * FMath::Cos(Elevation) + LocalUp * FMath::Sin(Elevation)) * Distance;
+	ChaseOffsetCm = bChaseOffsetSet ? FMath::VInterpTo(ChaseOffsetCm, Wanted, DeltaSeconds, 1.5f) : Wanted;
+	bChaseOffsetSet = true;
+	if (Camera->GetRootComponent())
+	{
+		Camera->GetRootComponent()->SetMobility(EComponentMobility::Movable);
+	}
+	Camera->SetActorLocation(Focus + ChaseOffsetCm);
 }
 
 // Ascent view: moves a level camera (at runtime only) so it looks at the vehicle with Earth's curved
@@ -1082,6 +1174,15 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	StatusDetail = Name == "MISSION_REPORT" ? ToFString(Event.message) : FString();
 
 	ACameraActor* Camera = FindCamera(Event);
+	if (Name == "LIFTOFF")
+	{
+		ChaseCamera = Camera;
+		bChaseOffsetSet = false;
+	}
+	else if ((Name == "STAGE1_SEPARATION" || Name == "FAIRING_RELEASE") && ChaseCamera.IsValid())
+	{
+		Camera = ChaseCamera.Get(); // one continuous follow from the pad to space
+	}
 	UE_LOG(LogOrbitalFlight, Display, TEXT("Event %d %s at show %.2f s, camera %s: %s"), Index, *ToFString(Name),
 		DisplayNow, Camera ? *ToFString(Event.vehicle + "/" + Event.camera) : TEXT("(missing)"), *StatusMessage);
 	if (Camera)
@@ -1118,7 +1219,15 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 	{
 		SetActorLocationAndRotation(PadCm, FRotator::ZeroRotator);
 		SetPadVisible(GetWorld(), true);
-		InitAscentPath(); // the climb ends where stage separation shows the vehicle, so the cut does not jump
+		bPadHidden = false;
+		InitAscentPath();
+		SmoothEarth();
+		if (Camera)
+		{
+			FVector Side = Camera->GetActorLocation() - PadCm;
+			Side -= PathUp * FVector::DotProduct(Side, PathUp);
+			ChaseSide = Side.IsNearlyZero() ? -Camera->GetActorForwardVector() : Side.GetSafeNormal();
+		}
 		Mode = EMode::Ascent;
 		FocusLocalCm = FVector(0, 0, TotalHeightM * 50.0);
 		FocusSizeM = TotalHeightM;
@@ -1132,17 +1241,19 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 		{
 			InitAscentPath();
 		}
-		SetActorTransform(AscentPose(SeparationHeightCm));
-		const FVector Focus = GetActorTransform().TransformPosition(FVector(0, 0, Stage1TopM * 100.0));
-		MakeDebris(Stage1, GetActorUpVector() * -300.0, FRotator(1.5, 0, 0.8));
-		Mode = EMode::Tracked;
-		DriftCm = GetActorUpVector() * 300.0;
+		SetActorTransform(AscentPose(AscentAltitudeNow()));
+		// The spent stage drops back along the flight path; the vehicle keeps climbing away from it.
+		MakeDebris(Stage1, AscentVelocityCm() * 0.85, FRotator(1.5, 0, 0.8)); // falls behind slowly
+		Mode = EMode::Ascent;
 		FocusLocalCm = FVector(0, 0, Stage1TopM * 100.0);
 		FocusSizeM = TotalHeightM + 10.0;
 		FocusFraction = 0.6;
 		if (Camera)
 		{
-			PlaceAboveEarth(*Camera, Focus);
+			if (Camera != ChaseCamera.Get())
+			{
+				PlaceAboveEarth(*Camera, GetActorTransform().TransformPosition(FocusLocalCm));
+			}
 			SetFill(true, Camera->GetActorLocation(), FVector::Dist(Camera->GetActorLocation(), GetActorLocation()));
 		}
 	}
@@ -1153,18 +1264,25 @@ void AOrbitalFlightPlayback::ApplyEvent(int32 Index, APlayerController& Player)
 		{
 			InitAscentPath();
 		}
-		SetActorTransform(AscentPose(FairingHeightCm));
-		const FVector Focus = GetActorTransform().TransformPosition(ProbeFocus);
-		const FVector Sideways = Camera ? Camera->GetActorRightVector() : FVector::RightVector;
-		MakeDebris(Fairing, Sideways * 180.0 - GetActorUpVector() * 60.0, FRotator(0, 0, 6.0));
-		Mode = EMode::Tracked;
-		DriftCm = GetActorUpVector() * 100.0;
+		SetActorTransform(AscentPose(AscentAltitudeNow()));
+		// Push the fairing clear at once (it would otherwise overlap the upper stage for a moment),
+		// then let it fall away sideways and behind while the vehicle climbs on.
+		const FVector Sideways = FVector::CrossProduct(GetActorUpVector(), ChaseSide).GetSafeNormal();
+		if (Fairing.Component)
+		{
+			Fairing.Component->AddWorldOffset(Sideways * (RocketDiameterM * 150.0));
+		}
+		MakeDebris(Fairing, AscentVelocityCm() * 0.85 + Sideways * 600.0, FRotator(0, 0, 10.0));
+		Mode = EMode::Ascent;
 		FocusLocalCm = ProbeFocus;
 		FocusSizeM = FairingHeightM + 8.0;
 		FocusFraction = 0.6;
 		if (Camera)
 		{
-			PlaceAboveEarth(*Camera, Focus);
+			if (Camera != ChaseCamera.Get())
+			{
+				PlaceAboveEarth(*Camera, GetActorTransform().TransformPosition(FocusLocalCm));
+			}
 			SetFill(true, Camera->GetActorLocation(), FVector::Dist(Camera->GetActorLocation(), GetActorLocation()));
 		}
 	}
@@ -1275,10 +1393,14 @@ void AOrbitalFlightPlayback::Tick(float DeltaSeconds)
 	// Vehicle motion.
 	if (Mode == EMode::Ascent && CurrentEvent >= 0)
 	{
-		const double Start = Show[CurrentEvent].displayTimeS;
-		const double End = CurrentEvent + 1 < Count ? Show[CurrentEvent + 1].displayTimeS : Start + 20.0;
-		const double U = FMath::Clamp((DisplayNow - Start) / FMath::Max(End - Start, 0.1), 0.0, 1.0);
-		SetActorTransform(AscentPose(SeparationHeightCm * U * U * U));
+		const double Height = AscentAltitudeNow();
+		SetActorTransform(AscentPose(Height));
+		if (!bPadHidden && Height > 20000.0)
+		{
+			SetPadVisible(GetWorld(), false); // the pad and its ground plate would show as a grey square from above
+			bPadHidden = true;
+		}
+		UpdateChaseCamera(DeltaSeconds);
 	}
 	else if (Mode == EMode::Tracked || Mode == EMode::Anchored)
 	{
@@ -1384,7 +1506,20 @@ FString AOrbitalFlightPlayback::GetPhaseText() const
 	{
 		return FString();
 	}
-	return ToFString(Show[CurrentEvent].phase).ToUpper() + TEXT("  |  ") + ToFString(Show[CurrentEvent].event);
+	// Plain words instead of raw codes: "Ascent  |  Fairing release", "Transfer  |  TLI complete".
+	const auto Readable = [](const FString& Code)
+	{
+		TArray<FString> Words;
+		Code.Replace(TEXT("STAGE1"), TEXT("STAGE 1")).ParseIntoArray(Words, TEXT("_"));
+		FString Out;
+		for (const FString& Word : Words)
+		{
+			FString Piece = Word.Len() <= 3 && Word != TEXT("SET") ? Word : Word.ToLower(); // keep TLI, MCC
+			Out += Out.IsEmpty() ? Piece.Left(1).ToUpper() + Piece.Mid(1) : TEXT(" ") + Piece;
+		}
+		return Out;
+	};
+	return Readable(ToFString(Show[CurrentEvent].phase)) + TEXT("  |  ") + Readable(ToFString(Show[CurrentEvent].event));
 }
 
 // ---------------------------------------------------------------- flame, sound, player camera

@@ -25,7 +25,7 @@ namespace
 	const float CloudOpacity = 1.2f; // multiplies the map's brightness; values above 1 thicken thin cloud
 	// Seen from below, the shell's underside gets almost no sunlight and blends into the blue sky.
 	// While the camera is under the layer the clouds get a soft grey-white glow so they read as clouds.
-	const float UnderGlow = 3.0f;
+	const float UnderGlow = 1.2f;
 }
 
 bool UOrbitalCloudsSubsystem::DoesSupportWorldType(const EWorldType::Type WorldType) const
