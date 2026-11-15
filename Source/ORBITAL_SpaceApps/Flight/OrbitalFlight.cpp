@@ -1,5 +1,7 @@
 #include "OrbitalFlight.h"
 
+#include "../Game/OrbitalLanguage.h"
+
 #include "../Assembly/OrbitalAssemblyScreenObject.h"
 #include "../OrbitalCatalogLoader.h"
 #include "Camera/CameraActor.h"
@@ -1715,7 +1717,7 @@ void AOrbitalFlightHUD::DrawHUD()
 	TArray<FString> Lines;
 	{
 		TArray<FString> Words;
-		Flight->GetStatusMessage().ParseIntoArray(Words, TEXT(" "));
+		OrbitalTr(Flight->GetStatusMessage()).ParseIntoArray(Words, TEXT(" "));
 		FString Line;
 		for (const FString& Word : Words)
 		{
@@ -1782,10 +1784,20 @@ void AOrbitalFlightHUD::DrawHUD()
 	}
 }
 
+void AOrbitalFlightHUD::DrawText(const FString& Text, FLinearColor Color, float X, float Y, UFont* Font, float Scale, bool bScalePosition)
+{
+	AHUD::DrawText(OrbitalTr(Text), Color, X, Y, Font, Scale, bScalePosition);
+}
+
+void AOrbitalFlightHUD::GetTextSize(const FString& Text, float& OutWidth, float& OutHeight, UFont* Font, float Scale) const
+{
+	AHUD::GetTextSize(OrbitalTr(Text), OutWidth, OutHeight, Font, Scale);
+}
+
 TArray<FString> AOrbitalFlightHUD::Wrap(const FString& Text, float MaxWidth, UFont* Font, float Scale) const
 {
 	TArray<FString> Lines, Words;
-	Text.ParseIntoArray(Words, TEXT(" "));
+	OrbitalTr(Text).ParseIntoArray(Words, TEXT(" ")); // translate the whole text first, then wrap it
 	FString Line;
 	for (const FString& Word : Words)
 	{

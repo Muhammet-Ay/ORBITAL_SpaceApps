@@ -7,6 +7,7 @@ Plain C++ tests for the headers in `Source/ORBITAL_SpaceApps/Assembly/`. Kept ou
     g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps -I../../Source/ORBITAL_SpaceApps/Assembly screen_tests.cpp   -o screen_tests   && ./screen_tests
     g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps -I../../Source/ORBITAL_SpaceApps/Assembly timeline_tests.cpp -o timeline_tests && ./timeline_tests   (-v prints every event)
     g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps/Assembly gameflow_tests.cpp -o gameflow_tests && ./gameflow_tests
+    g++ -std=c++17 -O2 -I../../Source/ORBITAL_SpaceApps text_tests.cpp -o text_tests && ./text_tests   (English -> Turkish lines; table from Tools/Localization/gen_turkish.py)
     python check_exports.py ../../Docs/CLAUDE_RESEARCH/PART_CATALOG.json exports.json
     (MSVC: cl /std:c++17 /EHsc /O2 /I..\..\Source\ORBITAL_SpaceApps /I..\..\Source\ORBITAL_SpaceApps\Assembly <file>.cpp)
 
