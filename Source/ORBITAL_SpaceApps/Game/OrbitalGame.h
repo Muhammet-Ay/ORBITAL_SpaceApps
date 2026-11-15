@@ -168,6 +168,14 @@ class ORBITAL_SPACEAPPS_API AOrbitalGameFlightHUD : public AOrbitalFlightHUD
 
 public:
 	virtual void DrawHUD() override;
+
+private:
+	// Orbit map: a schematic of the route from the pad to lunar orbit, with the vehicle's place on it.
+	void DrawMap(const Orbital::TimelineEvent& Event, float Left, float Top, float MapWidth, float MapHeight, float Unit, UFont* Font);
+
+	Orbital::Id MapEvent;        // event the map is animating from
+	float MapEventSeconds = 0;   // time since that event came on screen
+	float MapOrbitTurns = 0;     // turns flown around the Moon, for the moving marker
 };
 
 // Spawns the director when a game world begins play on L_Mission, and keeps the

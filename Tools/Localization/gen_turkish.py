@@ -151,6 +151,11 @@ for en, tr in {
     "Mission phase": "Görev aşaması", "Rocket fuel left": "Kalan roket yakıtı",
     "Spacecraft fuel left": "Kalan uzay aracı yakıtı", "Battery energy left": "Kalan batarya enerjisi",
     "Data sent to Earth": "Dünya'ya gönderilen veri",
+    # orbit map
+    "ORBIT MAP  (not to scale)": "YÖRÜNGE HARİTASI  (ölçekli değil)", "Earth": "Dünya", "Moon": "Ay",
+    "Climbing to orbit": "Yörüngeye tırmanış", "Parking orbit": "Park yörüngesi",
+    "On the way to the Moon": "Ay yolunda", "Lunar orbit": "Ay yörüngesi",
+    "Flew past the Moon": "Ay'ın yanından geçti", "Contact lost": "Bağlantı koptu",
     # flight view and report
     "Right mouse: orbit": "Sağ fare: çevir", "Wheel: zoom": "Tekerlek: yakınlaştır", "Skip  >>": "Geç  >>",
     "Phase reached": "Ulaşılan aşama", "Score: 1.5": "Puan: 1.5", "Science: 2.5": "Bilim: 2.5",

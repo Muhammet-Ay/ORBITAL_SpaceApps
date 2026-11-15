@@ -1438,6 +1438,139 @@ void AOrbitalGameFlightHUD::DrawHUD()
 		DrawText(Rows[Index].Title, FLinearColor(0.7f, 0.85f, 1.0f), PanelX + Pad, RowY, Font, Scale);
 		DrawText(Rows[Index].Value, FLinearColor::White, PanelX + Pad * 3.0f + TitleWidth, RowY, Font, Scale);
 	}
+
+	const float MapWidth = Width * 0.27f, MapHeight = Height * 0.30f;
+	DrawMap(*Event, Width - MapWidth - 24.0f * Unit, PanelY + Rows.Num() * RowHeight + 24.0f * Unit, MapWidth, MapHeight, Unit, Font);
+}
+
+// The map is a diagram, not a simulation: Earth, parking orbit, the transfer and lunar orbit are
+// drawn at convenient sizes, and the marker moves along the leg that the timeline event on screen
+// belongs to. It shows where the vehicle is in the mission; no result depends on it.
+void AOrbitalGameFlightHUD::DrawMap(const Orbital::TimelineEvent& Event, float Left, float Top, float MapWidth, float MapHeight,
+	float Unit, UFont* Font)
+{
+	if (Event.event != MapEvent)
+	{
+		MapEvent = Event.event;
+		MapEventSeconds = 0;
+	}
+	const float Delta = FMath::Clamp(RenderDelta, 0.0f, 0.1f);
+	MapEventSeconds += Delta;
+	const float Ease = 1.0f - FMath::Exp(-MapEventSeconds / 6.0f); // moves on, slows before the next event
+
+	// Route position: 0-1 climb, 1-2 parking orbit, 2-3 transfer, 3 and up turns around the Moon.
+	struct FLeg
+	{
+		const char* Event;
+		float From, To;
+		const TCHAR* Label;
+	};
+	static const FLeg Legs[] = {
+		{"LIFTOFF", 0.0f, 0.45f, TEXT("Climbing to orbit")},
+		{"STAGE1_SEPARATION", 0.45f, 0.75f, TEXT("Climbing to orbit")},
+		{"FAIRING_RELEASE", 0.75f, 1.0f, TEXT("Climbing to orbit")},
+		{"PARKING_ORBIT", 1.0f, 2.0f, TEXT("Parking orbit")},
+		{"TLI_COMPLETE", 2.0f, 2.5f, TEXT("On the way to the Moon")},
+		{"MIDCOURSE_CORRECTION", 2.5f, 2.93f, TEXT("On the way to the Moon")},
+		{"INSERTION_BURN_START", 2.93f, 3.0f, TEXT("On the way to the Moon")},
+	};
+	const bool bFlyby = Event.event == "INSERTION_FAILED", bLost = Event.event == "ECLIPSE_FAILED";
+	bool bInLunarOrbit = !bFlyby;
+	float Route = 3.0f;
+	FString LegLabel = bFlyby ? TEXT("Flew past the Moon") : bLost ? TEXT("Contact lost") : TEXT("Lunar orbit");
+	for (const FLeg& Leg : Legs)
+	{
+		if (Event.event == Leg.Event)
+		{
+			Route = FMath::Lerp(Leg.From, Leg.To, Ease);
+			LegLabel = Leg.Label;
+			bInLunarOrbit = false;
+		}
+	}
+	if (bInLunarOrbit && !bLost)
+	{
+		MapOrbitTurns = FMath::Fmod(MapOrbitTurns + Delta * 0.12f, 1.0f);
+	}
+
+	const float CentreY = Top + MapHeight * 0.56f;
+	const FVector2f Earth(Left + MapWidth * 0.22f, CentreY), Moon(Left + MapWidth * 0.80f, CentreY);
+	const float EarthRadius = MapWidth * 0.075f, ParkRadius = MapWidth * 0.115f;
+	const float MoonRadius = MapWidth * 0.030f, LunarRadius = MapWidth * 0.070f;
+	const FVector2f Depart(Earth.X - ParkRadius, CentreY), Arrive(Moon.X - LunarRadius, CentreY);
+	const float HalfLong = (Arrive.X - Depart.X) * 0.5f, HalfTall = MapHeight * 0.36f;
+	const auto Place = [&](float At)
+	{
+		if (At < 1.0f)
+		{
+			const float Angle = FMath::Lerp(0.15f, 0.5f, At) * UE_PI, Radius = FMath::Lerp(EarthRadius, ParkRadius, At);
+			return Earth + FVector2f(FMath::Cos(Angle), FMath::Sin(Angle)) * Radius;
+		}
+		if (At < 2.0f)
+		{
+			const float Angle = FMath::Lerp(0.5f, 1.0f, At - 1.0f) * UE_PI;
+			return Earth + FVector2f(FMath::Cos(Angle), FMath::Sin(Angle)) * ParkRadius;
+		}
+		if (At < 3.0f)
+		{
+			const float Angle = (3.0f - At) * UE_PI;
+			return FVector2f(Depart.X + HalfLong + HalfLong * FMath::Cos(Angle), CentreY - HalfTall * FMath::Sin(Angle));
+		}
+		const float Angle = UE_PI - (At - 3.0f) * 2.0f * UE_PI;
+		return Moon + FVector2f(FMath::Cos(Angle), FMath::Sin(Angle)) * LunarRadius;
+	};
+	const auto Disc = [&](const FVector2f& Centre, float Radius, const FLinearColor& Color)
+	{
+		const float Step = FMath::Max(1.0f, Unit);
+		for (float Offset = -Radius; Offset < Radius; Offset += Step)
+		{
+			const float Half = FMath::Sqrt(FMath::Max(0.0f, Radius * Radius - Offset * Offset));
+			DrawRect(Color, Centre.X - Half, Centre.Y + Offset, Half * 2.0f, Step);
+		}
+	};
+	const auto Ring = [&](const FVector2f& Centre, float Radius, const FLinearColor& Color)
+	{
+		for (int32 Index = 0; Index < 40; ++Index)
+		{
+			const float A = Index / 40.0f * 2.0f * UE_PI, B = (Index + 1) / 40.0f * 2.0f * UE_PI;
+			DrawLine(Centre.X + FMath::Cos(A) * Radius, Centre.Y + FMath::Sin(A) * Radius,
+				Centre.X + FMath::Cos(B) * Radius, Centre.Y + FMath::Sin(B) * Radius, Color, Unit);
+		}
+	};
+
+	const FLinearColor Planned(0.45f, 0.50f, 0.58f, 0.9f), Flown(0.45f, 1.0f, 0.5f), Accent(0.7f, 0.85f, 1.0f);
+	const FLinearColor Bad(1.0f, 0.45f, 0.35f);
+	DrawRect(FLinearColor(0.0f, 0.0f, 0.0f, 0.65f), Left, Top, MapWidth, MapHeight);
+	const float Scale = 1.0f * Unit, Pad = 8.0f * Unit;
+	DrawText(TEXT("ORBIT MAP  (not to scale)"), Accent, Left + Pad, Top + Pad * 0.6f, Font, Scale);
+
+	Ring(Earth, ParkRadius, Planned);
+	Ring(Moon, LunarRadius, bInLunarOrbit && !bLost ? Flown : Planned);
+	const float RouteStep = 0.02f;
+	for (float At = 0.0f; At < 3.0f - RouteStep * 0.5f; At += RouteStep)
+	{
+		const FVector2f A = Place(At), B = Place(At + RouteStep);
+		DrawLine(A.X, A.Y, B.X, B.Y, At <= Route ? Flown : Planned, At <= Route ? 2.0f * Unit : Unit);
+	}
+	Disc(Earth, EarthRadius, FLinearColor(0.16f, 0.38f, 0.75f));
+	Disc(Moon, MoonRadius, FLinearColor(0.72f, 0.72f, 0.70f));
+	DrawText(TEXT("Earth"), FLinearColor::White, Earth.X - EarthRadius, Earth.Y + ParkRadius + Pad * 0.5f, Font, Scale);
+	DrawText(TEXT("Moon"), FLinearColor::White, Moon.X - LunarRadius, Moon.Y + LunarRadius + Pad * 0.5f, Font, Scale);
+
+	// The vehicle. A failed insertion leaves along a path that passes the Moon.
+	FVector2f Vehicle = Place(bInLunarOrbit ? 3.0f + MapOrbitTurns : Route);
+	if (bFlyby)
+	{
+		const FVector2f Away(MapWidth * 0.17f, MapHeight * 0.40f);
+		for (float At = 0.0f; At < Ease; At += 0.05f)
+		{
+			const float Next = FMath::Min(At + 0.05f, Ease);
+			DrawLine(Arrive.X + Away.X * At, Arrive.Y + Away.Y * At * At, Arrive.X + Away.X * Next, Arrive.Y + Away.Y * Next * Next,
+				Bad, 2.0f * Unit);
+		}
+		Vehicle = FVector2f(Arrive.X + Away.X * Ease, Arrive.Y + Away.Y * Ease * Ease);
+	}
+	Disc(Vehicle, 4.5f * Unit, bFlyby || bLost ? Bad : FLinearColor::White);
+	DrawText(LegLabel, bFlyby || bLost ? Bad : Flown, Left + Pad, Top + MapHeight - Pad * 2.6f, Font, Scale);
 }
 
 // ---------------------------------------------------------------- main menu
