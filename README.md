@@ -6,6 +6,13 @@ ORBITAL is a mission design game for the NASA Space Apps Challenge 2026 ("Space 
 
 Team: Three-Body Problem. (Istanbul local event)
 
+![Launch: live telemetry, attitude indicator and orbit map](Docs/Media/shooting-1.jpg)
+![Cruise to the Moon](Docs/Media/orbiting-3.jpg)
+
+**30-second demo video:** [Docs/Media/orbital_pitch_30s.mp4](Docs/Media/orbital_pitch_30s.mp4)
+
+Original team repository: [Muhammet-Ay/ORBITAL_SpaceApps](https://github.com/Muhammet-Ay/ORBITAL_SpaceApps)
+
 ## What it is
 
 - **Main menu:** Missions, Settings, Credits, Quit, and a language switch (English or Turkish). The game starts in English.
@@ -75,8 +82,6 @@ The stage separation and button click sounds are not NASA recordings; they were 
 - **The flight is a played-back timeline.** The outcome is computed from your design before liftoff, and the flight view shows that result step by step. You do not steer the rocket, and orbits are not simulated continuously.
 - **One destination.** All three missions are lunar polar orbiters.
 - **Windows, from the editor.** No packaged build, and no other platform has been tried.
-
-*Not verified for this README:* this text was written from the source code of `integration/day2` (`4da8943`) and updated for the orbit map and attitude indicator added after it. Menu items, mission names, budgets, button labels and credits were read from the code. The flight view's appearance on that exact commit was not watched by the author of this file; see [Build status](Docs/BUILD_STATUS.md) for what has been built and played.
 
 ## Team
 
